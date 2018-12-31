@@ -1,0 +1,941 @@
+
+cmc__data <- new.env(parent = emptyenv())
+
+#' Metadata cache for a CRAN-like repository
+#'
+#' This is an R6 class that implements the metadata cache of a CRAN-like
+#' repository. For a higher level interface, see the [meta_cache_list()],
+#' [meta_cache_deps()], [meta_cache_revdeps()] and [meta_cache_update()]
+#' functions.
+#'
+#' The cache has several layers:
+#' * The data is stored inside the `cranlike_metadata_cache` object.
+#' * It is also stored as an RDS file, in the session temporary directory.
+#'   This ensures that the same data is used for all queries of a
+#'   `cranlike_metadata_cache` object.
+#' * It is stored in an RDS file in the user's cache directory.
+#' * The downloaded raw `PACKAGES*` files are cached, together with HTTP
+#'   ETags, to minimize downloads.
+#'
+#' It has a synchronous and an asynchronous API.
+#'
+#' @section Usage:
+#' ```
+#' cmc <- cranlike_metadata_cache$new(
+#'   primary_path = NULL, replica_path = tempfile(),
+#'   platforms = default_platforms(), r_version = current_r_version(),
+#'   bioc = TRUE, cran_mirror = default_cran_mirror(),
+#'   repos = getOption("repos"),
+#'   update_after = as.difftime(7, units = "days"))
+#'
+#' cmc$list(packages = NULL)
+#' cmc$async_list(packages = NULL)
+#'
+#' cmc$deps(packages, dependencies = NA, recursive = TRUE)
+#' cmc$async_deps(packages, dependencies = NA, recursive = TRUE)
+#'
+#' cmc$revdeps(packages, dependencies = NA, recursive = TRUE)
+#' cmc$async_revdeps(packages, dependencies = NA, recursive = TRUE)
+#'
+#' cmc$update()
+#' cmc$async_update()
+#' cmc$check_update()
+#' cmc$asnyc_check_update()
+#'
+#' cmc$cleanup(force = FALSE)
+#' ```
+#'
+#' @section Arguments:
+#' * `primary_path`: Path of the primary, user level cache. Defaults to
+#'   the user level cache directory of the machine.
+#' * `replica_path`: Path of the replica. Defaults to a temporary directory
+#'   within the session temporary directory.
+#' * `platforms`: Subset of `c("macos", "windows", "source")`, platforms
+#'   to get data for.
+#' * `r_version`: R version to create the cache for.
+#' * `bioc`: Whether to include BioConductor packages.
+#' * `cran_mirror`: CRAN mirror to use, this takes precedence over `repos`.
+#' * `repos`: Repositories to use.
+#' * `update_after`: `difftime` object. Automatically update the cache if
+#'   it gets older than this. Set it to `Inf` to avoid updates. Defaults
+#'   to seven days.
+#' * `packages`: Packages to query, character vector.
+#' * `dependencies`: Which kind of dependencies to include. Works the same
+#'   way as the `dependencies` argument of [utils::install.packages()].
+#' * `recursive`: Whether to include recursive dependencies.
+#' * `force`: Whether to force cleanup without asking the user.
+#'
+#' @section Details:
+#'
+#' `cranlike_metadata_cache$new()` creates a new cache object. Creation
+#' does not trigger the population of the cache. It is only populated on
+#' demand, when queries are executed against it. In your package, you may
+#' want to create a cache instance in the `.onLoad()` function of the
+#' package, and store it in the package namespace. As this is a cheap
+#' operation, the package will still load fast, and then the package code
+#' can refer to the common cache object.
+#'
+#' `cmc$list()` lists all (or the specified) packages in the cache.
+#' It returns a tibble, see the list of columns below.
+#'
+#' `cmc$async_list()` is similar, but it is asynchronous, it returns a
+#' [deferred] object.
+#'
+#' `cmd$deps()` returns a tibble, with the (potentially recursive)
+#' dependencies of `packages`.
+#'
+#' `cmd$async_deps()` is the same, but it is asynchronous, it
+#' returns a [deferred] object.
+#'
+#' `cmd$revdeps()` returns a tibble, with the (potentially recursive)
+#' reverse dependencies of `packages`.
+#'
+#' `cmd$async_revdeps()` does the same, asynchronously, it returns an
+#' [deferred] object.
+#'
+#' `cmd$update()` updates the the metadata (as needed) in the cache,
+#' and then returns a tibble with all packages, invisibly.
+#'
+#' `cmd$async_update()` is similar, but it is asynchronous.
+#'
+#' `cmd$check_update()` checks if the metadata is current, and if it is
+#' not, it updates it.
+#'
+#' `cmd$async_check_update()` is similar, but it is asynchronous.
+#'
+#' `cmd$cleanup()` deletes the cache files from the disk, and also from
+#' memory.
+#'
+#' @section Columns:
+#' The metadata tibble contains all available versions (i.e. sources and
+#' binaries) for all packages. It usually has the following columns,
+#' some might be missing on some platforms.
+#' * `package`: Package name.
+#' * `title`: Package title.
+#' * `version`: Package version.
+#' * `depends`: `Depends` field from `DESCRIPTION`, or `NA_character_`.
+#' * `suggests`: `Suggests` field from `DESCRIPTION`, or `NA_character_`.
+#' * `built`:  `Built` field from `DESCIPTION`, if a binary package,
+#'   or `NA_character_`.
+#' * `imports`: `Imports` field from `DESCRIPTION`, or `NA_character_`.
+#' * `archs`: `Archs` entries from `PACKAGES` files. Might be missing.
+#' * `repodir`: The directory of the file, inside the repository.
+#' * `platform`: Possible values: `macos`, `windows`, `source`.
+#' * `needscompilation`: Whether the package needs compilation.
+#' * `type`: `bioc` or `cran`  currently.
+#' * `target`: The path of the package file inside the repository.
+#' * `mirror`: URL of the CRAN/BioC mirror.
+#' * `sources`: List column with URLs to one or more possible locations
+#'   of the package file. For source CRAN packages, it contains URLs to
+#'   the `Archive` directory as well, in case the package has been
+#'   archived since the metadata was cached.
+#' * `filesize`: Size of the file, if known, in bytes, or `NA_integer_`.
+#' * `sha256`: The SHA256 hash of the file, if known, or `NA_character_`.
+#' * `deps`: All package dependencies, in a tibble.
+#' * `license`: Package license, might be `NA` for binary packages.
+#' * `linkingto`: `LinkingTo` field from `DESCRIPTION`, or `NA_character_`.
+#' * `enhances`: `Enhances` field from `DESCRIPTION`, or `NA_character_`.
+#' * `os_type`: `unix` or `windows` for OS specific packages. Usually `NA`.
+#' * `priority`: "optional", "recommended" or `NA`. (Base packages are
+#'   normalliy not included in the list, so "base" should not appear here.)
+#' * `md5sum`: MD5 sum, if available, may be `NA`.
+#'
+#' The tibble contains some extra columns as well, these are for internal
+#' use only.
+#'
+#' @export
+#' @examples
+#' \donttest{
+#' dir.create(cache_path <- tempfile())
+#' cmc <- cranlike_metadata_cache$new(cache_path, bioc = FALSE)
+#' cmc$list()
+#' cmc$list("pkgconfig")
+#' cmc$deps("pkgconfig")
+#' cmc$revdeps("pkgconfig", recursive = FALSE)
+#' }
+
+cranlike_metadata_cache <- R6Class(
+  "cranlike_metadata_cache",
+
+  public = list(
+    initialize = function(primary_path = NULL,
+                          replica_path = tempfile(),
+                          platforms = default_platforms(),
+                          r_version = current_r_version(), bioc = TRUE,
+                          cran_mirror = default_cran_mirror(),
+                          repos = getOption("repos"),
+                          update_after = as.difftime(7, units = "days"))
+      cmc_init(self, private,  primary_path, replica_path, platforms,
+               r_version, bioc, cran_mirror, repos, update_after),
+
+    deps = function(packages, dependencies = NA, recursive = TRUE)
+      synchronise(self$async_deps(packages, dependencies, recursive)),
+    async_deps = function(packages, dependencies = NA, recursive = TRUE)
+      cmc_async_deps(self, private, packages, dependencies, recursive),
+
+    revdeps = function(packages, dependencies = NA, recursive = TRUE)
+      synchronise(self$async_revdeps(packages, dependencies, recursive)),
+    async_revdeps = function(packages, dependencies = NA, recursive = TRUE)
+      cmc_async_revdeps(self, private, packages, dependencies, recursive),
+
+    list = function(packages = NULL)
+      synchronise(self$async_list(packages)),
+    async_list = function(packages = NULL)
+      cmc_async_list(self, private, packages),
+
+    update = function()
+      synchronise(self$async_update()),
+    async_update = function()
+      cmc_async_update(self, private),
+
+    check_update = function()
+      synchronise(self$async_check_update()),
+    async_check_update = function()
+      cmc_async_check_update(self, private),
+
+    cleanup = function(force = FALSE)
+      cmc_cleanup(self, private, force)
+  ),
+
+  private = list(
+    get_cache_files = function(which = c("primary", "replica"))
+      cmc__get_cache_files(self, private, match.arg(which)),
+
+    async_ensure_cache = function(max_age = private$update_after)
+      cmc__async_ensure_cache(self, private, max_age),
+
+    get_current_data = function(max_age)
+      cmc__get_current_data(self, private, max_age),
+    get_memory_cache = function(max_age)
+      cmc__get_memory_cache(self, private, max_age),
+    load_replica_rds = function(max_age)
+      cmc__load_replica_rds(self, private, max_age),
+    load_primary_rds = function(max_age)
+      cmc__load_primary_rds(self, private, max_age),
+    load_primary_pkgs = function(max_age)
+      cmc__load_primary_pkgs(self, private, max_age),
+
+    update_replica_pkgs = function()
+      cmc__update_replica_pkgs(self, private),
+    update_replica_rds = function()
+      cmc__update_replica_rds(self, private),
+    update_primary = function(rds = TRUE, packages = TRUE, lock = TRUE)
+      cmc__update_primary(self, private, rds, packages, lock),
+    update_memory_cache = function()
+      cmc__update_memory_cache(self, private),
+
+    copy_to_replica = function(rds = TRUE, pkgs = FALSE, etags = FALSE)
+      cmc__copy_to_replica(self, private, rds, pkgs, etags),
+
+    data = NULL,
+    data_time = NULL,
+    data_messaged = NULL,
+
+    update_deferred = NULL,
+
+    primary_path = NULL,
+    replica_path = NULL,
+    platforms = NULL,
+    r_version = NULL,
+    bioc = NULL,
+    repos = NULL,
+    update_after = NULL,
+    dirs = NULL,
+    lock_timeout = 10000
+  )
+)
+
+#' @importFrom filelock lock unlock
+
+cmc_init <- function(self, private, primary_path, replica_path, platforms,
+                     r_version, bioc, cran_mirror, repos, update_after) {
+
+  "!!DEBUG Init metadata cache in '`replica_path`'"
+  private$primary_path <- primary_path %||% get_user_cache_dir()$root
+  private$replica_path <- replica_path
+  private$platforms <- platforms
+  private$r_version <- get_minor_r_version(r_version)
+  private$bioc <- bioc
+  private$repos <- cmc__get_repos(repos, bioc, cran_mirror, r_version)
+  private$update_after <- update_after
+  private$dirs <- get_all_package_dirs(platforms, r_version)
+  invisible(self)
+}
+
+cmc_async_deps <- function(self, private, packages, dependencies,
+                           recursive) {
+  assert_that(
+    is_character(packages),
+    is_dependencies(dependencies),
+    is_flag(recursive))
+
+  "!!DEBUG Getting deps"
+  private$async_ensure_cache()$
+    then(~ extract_deps(., packages, dependencies, recursive))
+}
+
+cmc_async_revdeps <- function(self, private, packages, dependencies,
+                              recursive) {
+  assert_that(
+    is_character(packages),
+    is_dependencies(dependencies),
+    is_flag(recursive))
+
+  "!!DEBUG Getting revdeps"
+  private$async_ensure_cache()$
+    then(~ extract_revdeps(., packages, dependencies, recursive))
+}
+
+cmc_async_list <- function(self, private, packages) {
+  assert_that(is.null(packages) || is_character(packages))
+
+  "!!DEBUG Listing packages"
+  private$async_ensure_cache()$
+    then(function(x) {
+      if (is.null(packages)) x$pkgs else x$pkgs[x$pkgs$package %in% packages,]
+    })
+}
+
+cmc_async_update <- function(self, private) {
+  if (!is.null(private$update_deferred)) return(private$update_deferred)
+
+  private$update_deferred <- async(private$update_replica_pkgs)()$
+    then(~ private$update_replica_rds())$
+    then(~ private$update_primary())$
+    then(~ private$data)$
+    finally(function() private$update_deferred <- NULL)$
+    share()
+}
+
+cmc_async_check_update <- function(self, private) {
+  self; private
+  async(private$update_replica_pkgs)()$
+    then(function(ret) {
+      stat <- viapply(ret, function(x) x$response$status_code)
+      rep_files <- private$get_cache_files("replica")
+      pkg_times <- file_get_time(rep_files$pkgs$path)
+      if (! file.exists(rep_files$rds) ||
+          any(file_get_time(rep_files$rds) < pkg_times) ||
+          any(stat != 304)) {
+        private$update_replica_rds()
+        private$update_primary()
+        private$data
+
+      } else {
+        private$async_ensure_cache()
+      }
+    })
+}
+
+cmc_cleanup <- function(self, private, force) {
+  if (!force && !interactive()) {
+    stop("Not cleaning up cache, please specify `force = TRUE`")
+  }
+  cache_dir <- private$get_cache_files("primary")$meta
+  if (!force) {
+    msg <- glue::glue(
+      "Are you sure you want to clean up the cache in `{cache_dir}` (y/N)? ")
+    ans <- readline(msg)
+    if (! ans %in% c("y", "Y")) stop("Aborted")
+  }
+
+  local_cache_dir <- private$get_cache_files("replica")
+  unlink(local_cache_dir, recursive = TRUE, force = TRUE)
+  private$data <- NULL
+  private$data_messaged <- NULL
+  cli_alert_info("Cleaning up cache directory `{cache_dir}`")
+  unlink(cache_dir, recursive = TRUE, force = TRUE)
+}
+
+#' @importFrom digest digest
+#' @importFrom utils URLencode
+
+repo_encode <- function(repos) {
+  paste0(
+    vcapply(repos$name, URLencode, reserved = TRUE), "-",
+    substr(vcapply(repos$url, digest), 1, 10)
+  )
+}
+
+cmc__get_cache_files <- function(self, private, which) {
+  root <- private[[paste0(which, "_path")]]
+
+  repo_hash <- digest(list(repos = private$repos, dirs = private$dirs))
+
+  str_platforms <- paste(private$platforms, collapse = "+")
+  rds_file <- paste0("pkgs-", substr(repo_hash, 1, 10), ".rds")
+
+  repo_enc <- rep(repo_encode(private$repos), each = nrow(private$dirs))
+  pkgs_dirs <- rep(private$dirs$contriburl, nrow(private$repos))
+  pkgs_files <- file.path(pkgs_dirs, "PACKAGES.gz")
+  mirror <- rep(private$repos$url, each = nrow(private$dirs))
+  type <- rep(private$repos$type, each = nrow(private$dirs))
+  bioc_version <- rep(private$repos$bioc_version, each = nrow(private$dirs))
+
+  pkg_path <- file.path(root, "_metadata", repo_enc, pkgs_files)
+  meta_path <- ifelse(
+    type == "cran",
+    file.path(root, "_metadata", repo_enc, pkgs_dirs, "METADATA.gz"),
+    NA_character_)
+  meta_etag <- ifelse(
+    !is.na(meta_path), paste0(meta_path, ".etag"), NA_character_)
+  meta_url <- ifelse(
+    !is.na(meta_path),
+    paste0("https://cran.r-pkg.org/metadata/", pkgs_dirs, "/METADATA.gz"),
+    NA_character_)
+
+  list(
+    root = root,
+    meta = file.path(root, "_metadata"),
+    lock = file.path(root, "_metadata.lock"),
+    rds  = file.path(root, "_metadata", rds_file),
+    pkgs = tibble::tibble(
+      path = pkg_path,
+      etag = file.path(root, "_metadata", repo_enc, paste0(pkgs_files, ".etag")),
+      basedir = pkgs_dirs,
+      base = pkgs_files,
+      mirror = mirror,
+      url = paste0(mirror, "/", pkgs_files),
+      platform = rep(private$dirs$platform, nrow(private$repos)),
+      type = type,
+      bioc_version = bioc_version,
+      meta_path = meta_path,
+      meta_etag = meta_etag,
+      meta_url = meta_url
+    )
+  )
+}
+
+#' Load the cache, asynchronously, with as little work as possible
+#'
+#' 1. If it is already loaded, and fresh return it.
+#' 2. Otherwise try the replica RDS.
+#' 3. Otherwise try the primary RDS.
+#' 4. Otherwise try the primary PACKAGES files.
+#' 5. Otherwise update the replica PACKAGES files,
+#'    the replica RDS, and then also the primary PACKAGES and RDS.
+#'
+#' @param self self
+#' @param private private self
+#' @param max_age Maximum age allowed to consider the data current.
+#' @return Metadata.
+#' @keywords internal
+
+cmc__async_ensure_cache <- function(self, private, max_age) {
+  max_age
+
+  async_try_each(
+    async(private$get_current_data)(max_age),
+    async(private$get_memory_cache)(max_age),
+    async(private$load_replica_rds)(max_age),
+    async(private$load_primary_rds)(max_age),
+    async(private$load_primary_pkgs)(max_age),
+    self$async_update()
+
+  )$catch(error = function(err) {
+    err$message <- msg_wrap(
+      conditionMessage(utils::tail(err$errors, 1)[[1]]), "\n\n",
+      "Could not load or update metadata cache. If you think your local ",
+      "cache is broken, try deleting it with `meta_cache_cleanup()`, or ",
+      "the `$cleanup()` method.")
+    stop(err)
+  })
+}
+
+#' @importFrom cliapp cli_alert_success
+
+cmc__get_current_data <- function(self, private, max_age) {
+  "!!DEBUG Get current data?"
+  if (is.null(private$data)) stop("No data loaded")
+  if (is.null(private$data_time) ||
+      Sys.time() - private$data_time > max_age) {
+    stop("Loaded data outdated")
+  }
+
+  "!!DEBUG Got current data!"
+  if (! isTRUE(private$data_messaged)) {
+    private$data_messaged <- TRUE
+    cli_alert_success("Using cached package metadata")
+  }
+  private$data
+}
+
+cmc__get_memory_cache  <- function(self, private, max_age) {
+  "!!DEBUG Get from memory cache?"
+  rds <- private$get_cache_files("primary")$rds
+  hit <- cmc__data[[rds]]
+  if (is.null(hit)) stop("Not in the memory cache")
+  if (is.null(hit$data_time) || Sys.time() - hit$data_time > max_age) {
+    stop("Memory cache outdated")
+  }
+  private$data <- hit$data
+  private$data_time <- hit$data_time
+  private$data_messaged <- NULL
+
+  cli_alert_success("Using session cached package metadata")
+  private$data
+}
+
+#' Try to load the package metadata asynchronously, from the replica RDS
+#'
+#' If the replica has the RDS data, it is loaded and returned.
+#' Otherwise throws an error.
+#'
+#' @param self Self.
+#' @param private Private self.
+#' @param max_age Maximum age allowed for the RDS file to be considered
+#'   as current.
+#' @return The metadata.
+#' @keywords internal
+
+cmc__load_replica_rds <- function(self, private, max_age) {
+  "!!DEBUG Load replica RDS?"
+  rds <- private$get_cache_files("replica")$rds
+  if (!file.exists(rds)) stop("No replica RDS file in cache")
+
+  time <- file_get_time(rds)
+  if (Sys.time() - time > max_age) stop("Replica RDS cache file outdated")
+
+  bar <- cli_start_process("Loading session disk cached package metadata")
+  private$data <- readRDS(rds)
+  private$data_time <- time
+  private$data_messaged <- NULL
+  "!!DEBUG Loaded replica RDS!"
+  private$update_memory_cache()
+  bar$done()
+
+  private$data
+}
+
+#' Load the metadata from the primary cache's RDS file
+#'
+#' If it exists and current, then the replica RDS is updated to it as well,
+#' and the data is returned. Otherwise throws an error.
+#'
+#' @inheritParams cmc__load_replica_rds
+#' @return Metadata.
+#' @keywords internal
+
+cmc__load_primary_rds <- function(self, private, max_age) {
+  "!!DEBUG Load primary RDS?"
+  pri_files <- private$get_cache_files("primary")
+  rep_files <- private$get_cache_files("replica")
+
+  mkdirp(dirname(pri_files$lock))
+  l <- lock(pri_files$lock, exclusive = FALSE, private$lock_timeout)
+  if (is.null(l)) stop("Cannot acquire lock to copy RDS")
+  on.exit(unlock(l), add = TRUE)
+
+  if (!file.exists(pri_files$rds)) stop("No primary RDS file in cache")
+  time <- file_get_time(pri_files$rds)
+  if (Sys.time() - time > max_age) stop("Primary RDS cache file outdated")
+
+  ## Metadata files might be missing or outdated, that's ok (?)
+  pkgs_times <- file_get_time(pri_files$pkgs$path)
+  if (any(is.na(pkgs_times)) || any(pkgs_times >= time)) {
+    unlink(pri_files$rds)
+    stop("Primary PACKAGES missing or newer than replica RDS, removing")
+  }
+
+  bar <- cli_start_process("Loading global cached package metadata")
+  file_copy_with_time(pri_files$rds, rep_files$rds)
+  unlock(l)
+
+  private$data <- readRDS(rep_files$rds)
+  private$data_time <- time
+  private$data_messaged <- NULL
+
+  private$update_memory_cache()
+  bar$done()
+
+  private$data
+}
+
+#' Load metadata from the primary cache's PACKAGES files
+#'
+#' If they are not available, or outdated, it throws an error.
+#' Otherwise they are copied to the replica cache, and then used
+#' to create the RDS file. The RDS file is then written back to the
+#' primary cache and also loaded.
+#'
+#' @param self self
+#' @param private private self
+#' @param max_age Max age to consider the files current.
+#' @return Metadata.
+#' @keywords internal
+
+cmc__load_primary_pkgs <- function(self, private, max_age) {
+  "!!DEBUG Load replica PACKAGES*?"
+  pri_files <- private$get_cache_files("primary")
+  rep_files <- private$get_cache_files("replica")
+
+  ## Lock
+  mkdirp(dirname(pri_files$lock))
+  l <- lock(pri_files$lock, exclusive = FALSE, private$lock_timeout)
+  if (is.null(l)) stop("Cannot acquire lock to copy PACKAGES files")
+  on.exit(unlock(l), add = TRUE)
+
+  ## Check if PACKAGES exist and current. It is OK if metadata is missing
+  pkg_files <- pri_files$pkgs$path
+  if (!all(file.exists(pkg_files))) {
+    stop("Some primary PACKAGES files don't exist")
+  }
+  time <- file_get_time(pkg_files)
+  if (any(Sys.time() - time > max_age)) {
+    stop("Some primary PACKAGES files are outdated")
+  }
+
+  ## Copy to replica, if we cannot copy the etags, that's ok
+  bar <- cli_start_process("Loading raw global disk cached package metadata")
+  private$copy_to_replica(rds = FALSE, pkgs = TRUE, etags = TRUE)
+
+  ## Update RDS in replica, this also loads it
+  private$update_replica_rds()
+
+  ## Update primary, but not the PACKAGES
+  private$update_primary(rds = TRUE, packages = FALSE, lock = FALSE)
+  bar$done()
+
+  private$data
+}
+
+#' Update the PACKAGES files in the replica cache
+#'
+#' I.e. download them, if they have changed.
+#'
+#' @param self self
+#' @param private private self
+#' @keywords internal
+
+cmc__update_replica_pkgs <- function(self, private) {
+  "!!DEBUG Update replica PACKAGES"
+  cli_alert_info("Checking for package metadata updates")
+  tryCatch(
+    private$copy_to_replica(rds = TRUE, pkgs = TRUE, etags = TRUE),
+    error = function(e) e)
+
+  rep_files <- private$get_cache_files("replica")
+  pkgs <- rep_files$pkgs
+
+  meta <- !is.na(pkgs$meta_url)
+  dls <- data.frame(
+    stringsAsFactors = FALSE,
+    url = c(pkgs$url, pkgs$meta_url[meta]),
+    path = c(pkgs$path, pkgs$meta_path[meta]),
+    etag = c(pkgs$etag, pkgs$meta_etag[meta]))
+
+  download_files(dls)
+}
+
+#' Update the replica RDS from the PACKAGES files
+#'
+#' Also loads it afterwards.
+#'
+#' @param self self
+#' @param private private self
+#' @keywords internal
+
+cmc__update_replica_rds <- function(self, private) {
+  "!!DEBUG Update replica RDS"
+  bar <- cli_start_process("Updating metadata database")
+  rep_files <- private$get_cache_files("replica")
+
+  data_list <- lapply_rows(
+    rep_files$pkgs,
+    function(r) {
+      tryCatch(
+        read_packages_file(r$path, mirror = r$mirror,
+                           repodir = r$basedir, platform = r$platform,
+                           rversion = private$r_version, type = r$type,
+                           meta_path = r$meta_path),
+        error = function(x) {
+          message()
+          warning(msg_wrap(
+            "Cannot read metadata information from `", r$path, "`. ",
+            "The file is corrupt. Try deleting the metadata cache with ",
+            "`pkgcache::meta_cache_cleanup()` or the `$cleanup()` method"),
+            immediate. = TRUE)
+          NULL
+        }
+      )
+    })
+
+  data_list <- data_list[!vlapply(data_list, is.null)]
+
+  if (length(data_list) == 0) stop("No metadata available")
+
+  private$data <- merge_packages_data(.list = data_list)
+  saveRDS(private$data, file = rep_files$rds)
+  private$data_time <- file_get_time(rep_files$rds)
+  private$data_messaged <- NULL
+
+  private$update_memory_cache()
+
+  bar$done()
+  private$data
+}
+
+#' Update the primary cache from the replica cache
+#'
+#' @param self self
+#' @param private private self
+#' @param rds Whether to update the RDS file.
+#' @param packages Whether to update the PACKAGES files (+ ETag files).
+#' @return Nothing.
+#'
+#' @keywords internal
+
+cmc__update_primary <- function(self, private, rds, packages, lock) {
+
+  "!!DEBUG Updata primary cache"
+  if (!rds && !packages) return()
+
+  pri_files <- private$get_cache_files("primary")
+  rep_files <- private$get_cache_files("replica")
+
+  if (lock) {
+    mkdirp(dirname(pri_files$lock))
+    l <- lock(pri_files$lock, exclusive = TRUE, private$lock_timeout)
+    if (is.null(l)) stop("Cannot acquire lock to update primary cache")
+    on.exit(unlock(l), add = TRUE)
+  }
+
+  if (rds) {
+    file_copy_with_time(rep_files$rds, pri_files$rds)
+  }
+  if (packages) {
+    file_copy_with_time(rep_files$pkgs$path, pri_files$pkgs$path)
+    file_copy_with_time(rep_files$pkgs$etag, pri_files$pkgs$etag)
+    file_copy_with_time(na_omit(rep_files$pkgs$meta_path),
+                        na_omit(pri_files$pkgs$meta_path))
+    file_copy_with_time(na_omit(rep_files$pkgs$meta_etag),
+                        na_omit(pri_files$pkgs$meta_etag))
+  }
+  invisible()
+}
+
+cmc__update_memory_cache <- function(self, private) {
+  rds <- private$get_cache_files("primary")$rds
+  cmc__data[[rds]] <- list(data = private$data, data_time = private$data_time)
+}
+
+cmc__copy_to_replica <- function(self, private, rds, pkgs, etags) {
+  pri_files <- private$get_cache_files("primary")
+  rep_files <- private$get_cache_files("replica")
+
+  mkdirp(dirname(pri_files$lock))
+  l <- lock(pri_files$lock, exclusive = FALSE, private$lock_timeout)
+  if (is.null(l)) stop("Cannot acquire lock to copy primary cache")
+  on.exit(unlock(l), add = TRUE)
+
+  if (rds) {
+    file_copy_with_time(pri_files$rds, rep_files$rds)
+  }
+
+  if (pkgs) {
+    file_copy_with_time(pri_files$pkgs$path, rep_files$pkgs$path)
+    file_copy_with_time(na_omit(pri_files$pkgs$meta_path),
+                        na_omit(rep_files$pkgs$meta_path))
+  }
+  if (etags) {
+    file_copy_with_time(pri_files$pkgs$etag, rep_files$pkgs$etag)
+    file_copy_with_time(na_omit(pri_files$pkgs$meta_etag),
+                        na_omit(rep_files$pkgs$meta_etag))
+  }
+}
+
+extract_deps <- function(pkgs, packages, dependencies, recursive) {
+
+  realdep <- interpret_dependencies(dependencies)
+  dep <- tolower(realdep$direct)
+
+  new <- packages
+  repeat {
+    new <- setdiff(
+      pkgs$deps$package[pkgs$deps$upstream %in% new &
+                        pkgs$deps$type %in% dep],
+      packages)
+    if (!length(new)) break
+    packages <- c(packages, new)
+    if (!recursive) break
+    dep <- tolower(realdep$indirect)
+  }
+
+  packages <- setdiff(packages, "R")
+  res <- pkgs$pkgs[pkgs$pkgs$package %in% packages, ]
+
+  base <- intersect(packages, base_packages())
+  attr(res, "base") <- base
+  attr(res, "unknown") <- setdiff(packages, c(res$package, base))
+
+  res
+}
+
+extract_revdeps <- function(pkgs, packages, dependencies, recursive) {
+
+  realdep <- interpret_dependencies(dependencies)
+  dep <- tolower(realdep$direct)
+
+  new <- packages
+  repeat {
+    new <- setdiff(
+      pkgs$deps$upstream[pkgs$deps$ref %in% new & pkgs$deps$type %in% dep],
+      packages)
+    if (!length(new)) break
+    packages <- c(packages, new)
+    if (!recursive) break
+    dep <- tolower(realdep$indirect)
+  }
+
+  packages <- setdiff(packages, "R")
+  res <- pkgs$pkgs[pkgs$pkgs$package %in% packages, ]
+
+  base <- intersect(packages, base_packages())
+  attr(res, "base") <- base
+  attr(res, "unknown") <- setdiff(packages, c(res$package, base))
+
+  res
+}
+
+cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
+  repos[["CRAN"]] <- cran_mirror
+  res <- tibble(
+    name = names(repos),
+    url = unname(repos),
+    type = ifelse(names(repos) == "CRAN", "cran", "cranlike"),
+    bioc_version = NA_character_)
+
+  if (bioc) {
+    bioc_repos <- type_bioc_get_bioc_repos(r_version)
+    bioc_version <- bioc_repos$version
+    bioc_repos <- bioc_repos$repos
+
+    miss <- setdiff(names(bioc_repos), res$name)
+    bioc_res <- tibble(
+      name = miss,
+      url = unname(bioc_repos[miss]),
+      type = "bioc",
+      bioc_version = bioc_version
+    )
+    res <- rbind(res, bioc_res)
+    res$type[res$name %in% names(bioc_repos)] <- "bioc"
+    res$bioc_version[res$name %in% names(bioc_repos)] <- bioc_version
+  }
+
+  res <- res[!duplicated(res$url), ]
+  res <- res[!duplicated(res$name), ]
+
+  res
+}
+
+#' @importFrom glue glue_data
+
+type_bioc_get_bioc_repos <- function(r_version) {
+  bv <- type_bioc_matching_bioc_version(r_version)
+  tmpl <- c(
+    BioCsoft  = "https://bioconductor.org/packages/{bv}/bioc",
+    BioCann   = "https://bioconductor.org/packages/{bv}/data/annotation",
+    BioCexp   = "https://bioconductor.org/packages/{bv}/data/experiment",
+    BioCextra = if (package_version(bv) <= 3.5) {
+                  "https://bioconductor.org/packages/{bv}/extra"
+                }
+  )
+  list(
+    repos = vcapply(tmpl, glue_data, .x = list(bv = bv)),
+    version = bv
+  )
+}
+
+type_bioc_matching_bioc_version <- function(r_version) {
+  if (r_version >= "3.5") {
+    "3.7"
+  } else if (r_version >= "3.4") {
+    "3.6"
+  } else if (r_version >= "3.3.0") {
+    "3.4"
+  } else if (r_version >= "3.2") {
+    "3.2"
+  } else if (r_version >= "3.1.1") {
+    "3.0"
+  } else if (r_version == "3.1.0") {
+    "2.14"
+  } else if (r_version >= "2.15" && r_version <= "2.16") {
+    "2.11"
+  } else {
+    stop("Cannot get matching BioConductor version for ", r_version)
+  }
+}
+
+#' Query CRAN(like) package data
+#'
+#' It uses CRAN and BioConductor packages, for the current platform and
+#' R version, from the default repositories.
+#'
+#' `meta_cache_list()` lists all packages.
+#'
+#' `meta_cache_update()` updates all metadata. Note that metadata is
+#' automatically updated if it is older than seven days.
+#'
+#' `meta_cache_deps()` queries packages dependencies.
+#'
+#' `meta_cache_revdeps()` queries reverse package dependencies.
+#'
+#' `meta_cache_cleanup()` deletes the cache files from the disk.
+#'
+#' @param packages Packages to query.
+#' @param dependencies Dependency types to query. See the `dependencies`
+#'   parameter of [utils::install.packages()].
+#' @param recursive Whether to query recursive dependencies.
+#' @param force Whether to force cleanup without asking the user.
+#' @return A data frame (tibble) of the dependencies. For
+#'   `meta_cache_deps()` and `meta_cache_revdeps()` it includes the
+#'   queried `packages` as well.
+#'
+#' @section Examples:
+#' ```
+#' meta_cache_deps("dplyr")
+#' meta_cache_list(c("MASS", dplyr"))
+#' meta_cache_update()
+#' ```
+#'
+#' @export
+#' @examples
+#' \donttest{
+#' meta_cache_list("pkgdown")
+#' meta_cache_deps("pkgdown", recursive = FALSE)
+#' meta_cache_revdeps("pkgdown", recursive = FALSE)
+#' }
+
+meta_cache_deps <- function(packages, dependencies = NA,
+                            recursive = TRUE) {
+  global_metadata_cache$deps(packages, dependencies, recursive)
+}
+
+#' @export
+#' @rdname meta_cache_deps
+
+meta_cache_revdeps <- function(packages, dependencies = NA,
+                               recursive = TRUE) {
+  global_metadata_cache$revdeps(packages, dependencies, recursive)
+}
+
+#' @export
+#' @rdname meta_cache_deps
+
+meta_cache_update <- function() {
+  invisible(global_metadata_cache$update()$pkgs)
+}
+
+#' @export
+#' @rdname meta_cache_deps
+
+meta_cache_list <- function(packages = NULL) {
+  global_metadata_cache$list(packages)
+}
+
+#' @export
+#' @rdname meta_cache_deps
+
+meta_cache_cleanup <- function(force = FALSE) {
+  global_metadata_cache$cleanup(force = force)
+}
