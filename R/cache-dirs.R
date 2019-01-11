@@ -21,6 +21,7 @@ get_user_cache_dir <- function() {
 
   res <- list(
     root = cdir,
+    pkg  = file.path(cdir, "pkg"),
     meta = file.path(cdir, "_metadata"),
     lock = file.path(cdir, "_metadata.lock")
   )

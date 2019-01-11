@@ -109,8 +109,9 @@ get_all_package_dirs <- function(platforms, rversions) {
     }
   })
 
-  res <- as_tibble(do.call(rbind, res), validate = FALSE)
-  colnames(res) <- c("platform", "rversion", "contriburl")
+  mat <- do.call(rbind, res)
+  colnames(mat) <- c("platform", "rversion", "contriburl")
+  res <- as_tibble(mat)
   res$prefix <- paste0(
     "/",
     ifelse(res$rversion == "*", "*", paste0("R-", res$rversion)),
@@ -213,4 +214,8 @@ msg_wrap <- function(..., .space = TRUE) {
   ret <- paste(strwrap(paste0(...)), collapse = "\n")
   if (.space) ret <- paste0("\n", ret, "\n")
   ret
+}
+
+try_catch_null <- function(expr) {
+  tryCatch(expr, error = function(e) NULL)
 }
