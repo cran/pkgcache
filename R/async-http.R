@@ -301,7 +301,7 @@ download_one_of <- function(urls, destfile, etag_file = NULL,
     })
 }
 
-download_files <- function(data) {
+download_files <- function(data, ...) {
   if (any(dup <- duplicated(data$path))) {
     stop("Duplicate target paths in download_files: ",
          paste0("`", unique(data$path[dup]), "`", collapse = ", "), ".")
@@ -312,16 +312,26 @@ download_files <- function(data) {
 
   dls <- lapply(seq_len(nrow(data)), function(idx) {
     row <- data[idx, ]
-    download_if_newer(row$url, row$path, row$etag, on_progress = prog_cb)$
+    dx <- download_if_newer(row$url, row$path, row$etag,
+      on_progress = prog_cb, options = list(timeout = row$timeout %||% 10),
+      ...)$
       then(function(result) {
         status_code <- result$response$status_code
         if (status_code == 304) {
           update_progress_bar_uptodate(bar, row$url)
-        } else if (status_code == 200) {
+        } else {
           update_progress_bar_done(bar, row$url)
         }
         result
       })
+
+    if (isTRUE(row$mayfail)) {
+      dx$catch(error = function(err) {
+        cat("", file = row$path, append = TRUE)
+      })
+    } else {
+      dx
+    }
   })
 
   ok <- FALSE

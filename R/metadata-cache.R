@@ -107,7 +107,7 @@ cmc__data <- new.env(parent = emptyenv())
 #'
 #' `cmc$summary()` lists metadata about the cache, including its
 #' location and size.
-#' 
+#'
 #' `cmc$cleanup()` deletes the cache files from the disk, and also from
 #' memory.
 #'
@@ -144,6 +144,11 @@ cmc__data <- new.env(parent = emptyenv())
 #' * `priority`: "optional", "recommended" or `NA`. (Base packages are
 #'   normalliy not included in the list, so "base" should not appear here.)
 #' * `md5sum`: MD5 sum, if available, may be `NA`.
+#' * `sysreqs`: For CRAN packages, the `SystemRequirements` field, the
+#'   required system libraries or other software for the package. For
+#'   non-CRAN packages it is `NA`.
+#' * `published`: The time the package was published at, in GMT,
+#'   `POSIXct` class.
 #'
 #' The tibble contains some extra columns as well, these are for internal
 #' use only.
@@ -235,6 +240,11 @@ cranlike_metadata_cache <- R6Class(
     copy_to_replica = function(rds = TRUE, pkgs = FALSE, etags = FALSE)
       cmc__copy_to_replica(self, private, rds, pkgs, etags),
 
+    ## We use this to make sure that different versions of pkgcache can
+    ## share the same metadata cache directory. It is used to calculate
+    ## the hash of the cached RDS file.
+    cache_version = "2",
+
     data = NULL,
     data_time = NULL,
     data_messaged = NULL,
@@ -325,7 +335,11 @@ cmc_async_check_update <- function(self, private) {
 
   private$chk_update_deferred <- async(private$update_replica_pkgs)()$
     then(function(ret) {
-      stat <- viapply(ret, function(x) x$response$status_code)
+      ## Some might be NULL, if failure was allowed and indeed it happened.
+      ## For these we just pretend that they did not change, so they do
+      ## not trigger an update. The metadata RDS builder is robust for
+      ## these files to be empty or non-existing.
+      stat <- viapply(ret, function(x) x$response$status_code %||% 304L)
       rep_files <- private$get_cache_files("replica")
       pkg_times <- file_get_time(rep_files$pkgs$path)
       if (! file.exists(rep_files$rds) ||
@@ -388,10 +402,17 @@ repo_encode <- function(repos) {
   )
 }
 
+cran_metadata_url <- function() {
+  Sys.getenv(
+    "R_PKG_CRAN_METADATA_URL",
+    "https://cran.r-pkg.org/metadata/")
+}
+
 cmc__get_cache_files <- function(self, private, which) {
   root <- private[[paste0(which, "_path")]]
 
-  repo_hash <- digest(list(repos = private$repos, dirs = private$dirs))
+  repo_hash <- digest(list(repos = private$repos, dirs = private$dirs,
+                           version = private$cache_version))
 
   str_platforms <- paste(private$platforms, collapse = "+")
   rds_file <- paste0("pkgs-", substr(repo_hash, 1, 10), ".rds")
@@ -406,13 +427,13 @@ cmc__get_cache_files <- function(self, private, which) {
   pkg_path <- file.path(root, "_metadata", repo_enc, pkgs_files)
   meta_path <- ifelse(
     type == "cran",
-    file.path(root, "_metadata", repo_enc, pkgs_dirs, "METADATA.gz"),
+    file.path(root, "_metadata", repo_enc, pkgs_dirs, "METADATA2.gz"),
     NA_character_)
   meta_etag <- ifelse(
     !is.na(meta_path), paste0(meta_path, ".etag"), NA_character_)
   meta_url <- ifelse(
     !is.na(meta_path),
-    paste0("https://cran.r-pkg.org/metadata/", pkgs_dirs, "/METADATA.gz"),
+    paste0(cran_metadata_url(), pkgs_dirs, "/METADATA2.gz"),
     NA_character_)
 
   list(
@@ -656,7 +677,9 @@ cmc__update_replica_pkgs <- function(self, private) {
     stringsAsFactors = FALSE,
     url = c(pkgs$url, pkgs$meta_url[meta]),
     path = c(pkgs$path, pkgs$meta_path[meta]),
-    etag = c(pkgs$etag, pkgs$meta_etag[meta]))
+    etag = c(pkgs$etag, pkgs$meta_etag[meta]),
+    timeout = rep(c(20, 10), c(nrow(pkgs), sum(meta))),
+    mayfail = rep(c(FALSE, TRUE), c(nrow(pkgs), sum(meta))))
 
   download_files(dls)
 }
@@ -840,9 +863,8 @@ cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
     bioc_version = NA_character_)
 
   if (bioc) {
-    bioc_repos <- type_bioc_get_bioc_repos(r_version)
-    bioc_version <- bioc_repos$version
-    bioc_repos <- bioc_repos$repos
+    bioc_version <- as.character(bioconductor$get_bioc_version(r_version))
+    bioc_repos <- bioconductor$get_repos(bioc_version)
 
     miss <- setdiff(names(bioc_repos), res$name)
     bioc_res <- tibble(
@@ -862,44 +884,6 @@ cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
   res
 }
 
-#' @importFrom glue glue_data
-
-type_bioc_get_bioc_repos <- function(r_version) {
-  bv <- type_bioc_matching_bioc_version(r_version)
-  tmpl <- c(
-    BioCsoft  = "https://bioconductor.org/packages/{bv}/bioc",
-    BioCann   = "https://bioconductor.org/packages/{bv}/data/annotation",
-    BioCexp   = "https://bioconductor.org/packages/{bv}/data/experiment",
-    BioCextra = if (package_version(bv) <= 3.5) {
-                  "https://bioconductor.org/packages/{bv}/extra"
-                }
-  )
-  list(
-    repos = vcapply(tmpl, glue_data, .x = list(bv = bv)),
-    version = bv
-  )
-}
-
-type_bioc_matching_bioc_version <- function(r_version) {
-  if (r_version >= "3.5") {
-    "3.7"
-  } else if (r_version >= "3.4") {
-    "3.6"
-  } else if (r_version >= "3.3.0") {
-    "3.4"
-  } else if (r_version >= "3.2") {
-    "3.2"
-  } else if (r_version >= "3.1.1") {
-    "3.0"
-  } else if (r_version == "3.1.0") {
-    "2.14"
-  } else if (r_version >= "2.15" && r_version <= "2.16") {
-    "2.11"
-  } else {
-    stop("Cannot get matching BioConductor version for ", r_version)
-  }
-}
-
 #' Query CRAN(like) package data
 #'
 #' It uses CRAN and BioConductor packages, for the current platform and
@@ -916,7 +900,7 @@ type_bioc_matching_bioc_version <- function(r_version) {
 #'
 #' `meta_cache_summary()` lists data about the cache, including its location
 #' and size.
-#' 
+#'
 #' `meta_cache_cleanup()` deletes the cache files from the disk.
 #'
 #' @param packages Packages to query.
