@@ -1,10 +1,10 @@
-4f3e72cc8223c8c2896640ef906e0e61 *DESCRIPTION
+5ddf64d61e6427edc8375c9c229e4f9c *DESCRIPTION
 db8df6852a9a4942bd575b66a884b35e *LICENSE
 56779a56bc07f66451e32161e3ce417e *NAMESPACE
-40da5d9733c3cbcc163cb0aad839e37a *NEWS.md
+d15ae736d5f7725d07e851e524b9855b *NEWS.md
 c0f9efc4d307e22d619524b58bc1ad53 *R/aaa-async.R
 412edfbcfca916489764b445198bf775 *R/assertions.R
-95d1ae3a16cedc4026b62f99f7dc0e17 *R/async-http.R
+36f070598fc9cdc8e5562da7b0479e92 *R/async-http.R
 0e226f57789a1a23066f6ada8865306c *R/bioc.R
 f4c14c75b0b4c067542a64c2c5a83ec6 *R/cache-api.R
 e2eaed5d4509cba17cee7da77ab623e9 *R/cache-dirs.R
@@ -17,7 +17,7 @@ d41d8cd98f00b204e9800998ecf8427e *R/package.R
 67f87e638774022fe194e1c073adc39d *R/packages-gz.R
 3d7a3d6a6e09165edc5c16227ec4f12f *R/progress-bar.R
 a74f3de6cb41fbbcff61ad0de62d5967 *R/utils.R
-7afeccd0634f5b7d893c5f64e2d1daaf *README.md
+6ad9e9968732804b275f15cf2b918a21 *README.md
 9b77155ed6e2e0c284e509d935c72a24 *inst/WORDLIST
 e4177ce2724199399d719218936c7d58 *man/call_with_callback.Rd
 e68d9a0c5f31bd34f4efc7db58f642e9 *man/cmc__async_ensure_cache.Rd

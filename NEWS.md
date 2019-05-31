@@ -1,4 +1,8 @@
 
+# pkgcache 1.0.5
+
+* Fix a bug in the download functions, that broke pak downloads.
+
 # pkgcache 1.0.4
 
 * Fix handling of Bioconducor versions and repositories, see
