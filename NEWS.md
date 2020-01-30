@@ -1,4 +1,14 @@
 
+# pkgcache 1.0.6
+
+* HTTP timeouts are now much better, and by default they are defined
+  in terms of download speed, instead of total download time (#29).
+
+* pkgcache now tries to download metadata from the `PACKAGES` file, if it
+  cannot find `PACKAGES.gz` (@timmsm, #27).
+
+* pkgcache is now less verbose when updating or loading metadata.
+
 # pkgcache 1.0.5
 
 * Fix a bug in the download functions, that broke pak downloads.

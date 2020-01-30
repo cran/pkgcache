@@ -154,15 +154,13 @@ cmc__data <- new.env(parent = emptyenv())
 #' use only.
 #'
 #' @export
-#' @examples
-#' \donttest{
+#' @examplesIf asNamespace("pkgcache")$is_online()
 #' dir.create(cache_path <- tempfile())
 #' cmc <- cranlike_metadata_cache$new(cache_path, bioc = FALSE)
 #' cmc$list()
 #' cmc$list("pkgconfig")
 #' cmc$deps("pkgconfig")
 #' cmc$revdeps("pkgconfig", recursive = FALSE)
-#' }
 
 cranlike_metadata_cache <- R6Class(
   "cranlike_metadata_cache",
@@ -230,8 +228,8 @@ cranlike_metadata_cache <- R6Class(
 
     update_replica_pkgs = function()
       cmc__update_replica_pkgs(self, private),
-    update_replica_rds = function()
-      cmc__update_replica_rds(self, private),
+    update_replica_rds = function(alert = TRUE)
+      cmc__update_replica_rds(self, private, alert),
     update_primary = function(rds = TRUE, packages = TRUE, lock = TRUE)
       cmc__update_primary(self, private, rds, packages, lock),
     update_memory_cache = function()
@@ -345,7 +343,7 @@ cmc_async_check_update <- function(self, private) {
       if (! file.exists(rep_files$rds) ||
           any(file_get_time(rep_files$rds) < pkg_times) ||
           any(stat != 304)) {
-        private$update_replica_rds()
+        private$update_replica_rds(alert = FALSE)
         private$update_primary()
         private$data
 
@@ -372,6 +370,8 @@ cmc_summary <- function(self, private) {
   )
 }
 
+#' @importFrom cli cli_alert_info
+
 cmc_cleanup <- function(self, private, force) {
   if (!force && !interactive()) {
     stop("Not cleaning up cache, please specify `force = TRUE`")
@@ -388,7 +388,7 @@ cmc_cleanup <- function(self, private, force) {
   unlink(local_cache_dir, recursive = TRUE, force = TRUE)
   private$data <- NULL
   private$data_messaged <- NULL
-  cli_alert_info("Cleaning up cache directory `{cache_dir}`")
+  cli_alert_info("Cleaning up cache directory {.path {cache_dir}}.")
   unlink(cache_dir, recursive = TRUE, force = TRUE)
 }
 
@@ -420,6 +420,7 @@ cmc__get_cache_files <- function(self, private, which) {
   repo_enc <- rep(repo_encode(private$repos), each = nrow(private$dirs))
   pkgs_dirs <- rep(private$dirs$contriburl, nrow(private$repos))
   pkgs_files <- file.path(pkgs_dirs, "PACKAGES.gz")
+  pkgs_files2 <- file.path(pkgs_dirs, "PACKAGES")
   mirror <- rep(private$repos$url, each = nrow(private$dirs))
   type <- rep(private$repos$type, each = nrow(private$dirs))
   bioc_version <- rep(private$repos$bioc_version, each = nrow(private$dirs))
@@ -448,6 +449,7 @@ cmc__get_cache_files <- function(self, private, which) {
       base = pkgs_files,
       mirror = mirror,
       url = paste0(mirror, "/", pkgs_files),
+      fallback_url = paste0(mirror, "/", pkgs_files2),
       platform = rep(private$dirs$platform, nrow(private$repos)),
       type = type,
       bioc_version = bioc_version,
@@ -497,8 +499,6 @@ cmc__async_ensure_cache <- function(self, private, max_age) {
   }
 }
 
-#' @importFrom cliapp cli_alert_success
-
 cmc__get_current_data <- function(self, private, max_age) {
   "!!DEBUG Get current data?"
   if (is.null(private$data)) stop("No data loaded")
@@ -510,7 +510,6 @@ cmc__get_current_data <- function(self, private, max_age) {
   "!!DEBUG Got current data!"
   if (! isTRUE(private$data_messaged)) {
     private$data_messaged <- TRUE
-    cli_alert_success("Using cached package metadata")
   }
   private$data
 }
@@ -527,7 +526,6 @@ cmc__get_memory_cache  <- function(self, private, max_age) {
   private$data_time <- hit$data_time
   private$data_messaged <- NULL
 
-  cli_alert_success("Using session cached package metadata")
   private$data
 }
 
@@ -542,6 +540,7 @@ cmc__get_memory_cache  <- function(self, private, max_age) {
 #'   as current.
 #' @return The metadata.
 #' @keywords internal
+#' @importFrom cli cli_process_start cli_process_done
 
 cmc__load_replica_rds <- function(self, private, max_age) {
   "!!DEBUG Load replica RDS?"
@@ -551,13 +550,13 @@ cmc__load_replica_rds <- function(self, private, max_age) {
   time <- file_get_time(rds)
   if (Sys.time() - time > max_age) stop("Replica RDS cache file outdated")
 
-  bar <- cli_start_process("Loading session disk cached package metadata")
+  sts <- cli_process_start("Loading session disk cached package metadata")
   private$data <- readRDS(rds)
   private$data_time <- time
   private$data_messaged <- NULL
   "!!DEBUG Loaded replica RDS!"
   private$update_memory_cache()
-  bar$done()
+  cli_process_done(sts)
 
   private$data
 }
@@ -570,6 +569,7 @@ cmc__load_replica_rds <- function(self, private, max_age) {
 #' @inheritParams cmc__load_replica_rds
 #' @return Metadata.
 #' @keywords internal
+#' @importFrom cli cli_process_start cli_process_done
 
 cmc__load_primary_rds <- function(self, private, max_age) {
   "!!DEBUG Load primary RDS?"
@@ -592,7 +592,7 @@ cmc__load_primary_rds <- function(self, private, max_age) {
     stop("Primary PACKAGES missing or newer than replica RDS, removing")
   }
 
-  bar <- cli_start_process("Loading global cached package metadata")
+  sts <- cli_process_start("Loading global cached package metadata")
   file_copy_with_time(pri_files$rds, rep_files$rds)
   unlock(l)
 
@@ -601,7 +601,7 @@ cmc__load_primary_rds <- function(self, private, max_age) {
   private$data_messaged <- NULL
 
   private$update_memory_cache()
-  bar$done()
+  cli_process_done(sts)
 
   private$data
 }
@@ -618,6 +618,7 @@ cmc__load_primary_rds <- function(self, private, max_age) {
 #' @param max_age Max age to consider the files current.
 #' @return Metadata.
 #' @keywords internal
+#' @importFrom cli cli_process_start cli_process_done
 
 cmc__load_primary_pkgs <- function(self, private, max_age) {
   "!!DEBUG Load replica PACKAGES*?"
@@ -641,15 +642,15 @@ cmc__load_primary_pkgs <- function(self, private, max_age) {
   }
 
   ## Copy to replica, if we cannot copy the etags, that's ok
-  bar <- cli_start_process("Loading raw global disk cached package metadata")
+  sts <- cli_process_start("Loading raw global disk cached package metadata")
   private$copy_to_replica(rds = FALSE, pkgs = TRUE, etags = TRUE)
 
   ## Update RDS in replica, this also loads it
-  private$update_replica_rds()
+  private$update_replica_rds(alert = FALSE)
 
   ## Update primary, but not the PACKAGES
   private$update_primary(rds = TRUE, packages = FALSE, lock = FALSE)
-  bar$done()
+  cli_process_done(sts)
 
   private$data
 }
@@ -664,7 +665,6 @@ cmc__load_primary_pkgs <- function(self, private, max_age) {
 
 cmc__update_replica_pkgs <- function(self, private) {
   "!!DEBUG Update replica PACKAGES"
-  cli_alert_info("Checking for package metadata updates")
   tryCatch(
     private$copy_to_replica(rds = TRUE, pkgs = TRUE, etags = TRUE),
     error = function(e) e)
@@ -676,9 +676,10 @@ cmc__update_replica_pkgs <- function(self, private) {
   dls <- data.frame(
     stringsAsFactors = FALSE,
     url = c(pkgs$url, pkgs$meta_url[meta]),
+    fallback_url = c(pkgs$fallback_url, rep(NA_character_, sum(meta))),
     path = c(pkgs$path, pkgs$meta_path[meta]),
     etag = c(pkgs$etag, pkgs$meta_etag[meta]),
-    timeout = rep(c(20, 10), c(nrow(pkgs), sum(meta))),
+    timeout = rep(c(200, 100), c(nrow(pkgs), sum(meta))),
     mayfail = rep(c(FALSE, TRUE), c(nrow(pkgs), sum(meta))))
 
   download_files(dls)
@@ -690,11 +691,13 @@ cmc__update_replica_pkgs <- function(self, private) {
 #'
 #' @param self self
 #' @param private private self
+#' @param alert whether to show message about the update
 #' @keywords internal
+#' @importFrom cli cli_process_start cli_process_done
 
-cmc__update_replica_rds <- function(self, private) {
+cmc__update_replica_rds <- function(self, private, alert) {
   "!!DEBUG Update replica RDS"
-  bar <- cli_start_process("Updating metadata database")
+  if (alert) sts <- cli_process_start("Updating local metadata database")
   rep_files <- private$get_cache_files("replica")
 
   data_list <- lapply_rows(
@@ -728,7 +731,7 @@ cmc__update_replica_rds <- function(self, private) {
 
   private$update_memory_cache()
 
-  bar$done()
+  if (alert) cli_process_done(sts)
   private$data
 }
 
@@ -912,20 +915,11 @@ cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
 #'   `meta_cache_deps()` and `meta_cache_revdeps()` it includes the
 #'   queried `packages` as well.
 #'
-#' @section Examples:
-#' ```
-#' meta_cache_deps("dplyr")
-#' meta_cache_list(c("MASS", dplyr"))
-#' meta_cache_update()
-#' ```
-#'
 #' @export
-#' @examples
-#' \donttest{
+#' @examplesIf asNamespace("pkgcache")$is_online()
 #' meta_cache_list("pkgdown")
 #' meta_cache_deps("pkgdown", recursive = FALSE)
 #' meta_cache_revdeps("pkgdown", recursive = FALSE)
-#' }
 
 meta_cache_deps <- function(packages, dependencies = NA,
                             recursive = TRUE) {

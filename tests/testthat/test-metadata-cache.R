@@ -21,7 +21,7 @@ test_that("get_cache_files", {
     expect_true(tibble::is_tibble(files$pkgs))
     expect_equal(
       sort(names(files$pkgs)),
-      sort(c("path", "etag", "basedir", "base", "mirror", "url",
+      sort(c("path", "etag", "basedir", "base", "mirror", "url", "fallback_url",
              "platform", "type", "bioc_version", "meta_path", "meta_etag",
              "meta_url")))
     expect_equal(
@@ -330,7 +330,7 @@ test_that("update", {
   expect_true(all(file.exists(pri_files$pkgs$etag)))
 
   ## List
-  expect_equal(data$pkgs, cmc$list())
+  expect_equal(as.list(data$pkgs), as.list(cmc$list()))
   lst <- cmc$list(c("igraph", "MASS"))
   expect_equal(sort(c("igraph", "MASS")), sort(unique(lst$package)))
 
@@ -602,9 +602,7 @@ test_that("memory cache", {
   rep2 <- test_temp_dir()
   cmc2 <- cranlike_metadata_cache$new(pri, rep2, "source", bioc = FALSE)
   week <- as.difftime(7, units = "days")
-  expect_message(
-    data2 <- get_private(cmc2)$get_memory_cache(week),
-    "Using session cached package metadata")
+  data2 <- get_private(cmc2)$get_memory_cache(week)
   expect_identical(data, data2$pkgs)
 
   rep3 <- test_temp_dir()

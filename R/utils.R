@@ -196,20 +196,6 @@ file.size <- function (...) {
   file.info(...)$size
 }
 
-is_verbose <- function() {
-  env <- Sys.getenv("R_PKG_SHOW_PROGRESS", "")
-  if (env != "") {
-    tolower(env) == "true"
-  } else {
-    opt <- getOption("pkg.show_progress")
-    if (!is.null(opt)) {
-      return(isTRUE(opt))
-    } else {
-      interactive()
-    }
-  }
-}
-
 msg_wrap <- function(..., .space = TRUE) {
   ret <- paste(strwrap(paste0(...)), collapse = "\n")
   if (.space) ret <- paste0("\n", ret, "\n")
@@ -218,4 +204,17 @@ msg_wrap <- function(..., .space = TRUE) {
 
 try_catch_null <- function(expr) {
   tryCatch(expr, error = function(e) NULL)
+}
+
+is_rcmd_check <- function() {
+  if (identical(Sys.getenv("NOT_CRAN"), "true")) {
+    FALSE
+  } else {
+    Sys.getenv("_R_CHECK_PACKAGE_NAME_", "") != ""
+  }
+}
+
+is_online <- function() {
+  if (is_rcmd_check()) return(FALSE)
+  curl::has_internet()
 }

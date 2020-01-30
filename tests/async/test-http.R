@@ -1,5 +1,5 @@
 
-context("HTTP")
+context("http")
 
 test_that("GET", {
 
@@ -237,6 +237,28 @@ test_that("timeout, failed request", {
   expect_true(toc - tic < as.difftime(4, units = "secs"))
 })
 
+test_that("more sophisticated timeouts", {
+
+  skip_if_offline()
+
+  do <- function() {
+    withr::local_options(list(
+      async_http_timeout = 6,
+      async_http_low_speed_time = 2,
+      async_http_low_speed_limit = 10
+    ))
+    http_get("https://eu.httpbin.org/drip?duration=5&numbytes=10&code=200&delay=0")
+  }
+
+  tic <- Sys.time()
+  err <- tryCatch(synchronise(do()), error = identity)
+  toc <- Sys.time()
+
+  expect_s3_class(err, "async_rejected")
+  expect_match(conditionMessage(err), "too slow")
+  expect_true(toc - tic < as.difftime(5, units = "secs"))
+})
+
 test_that("errors contain the response", {
 
   skip_if_offline()
@@ -265,4 +287,22 @@ test_that("errors contain the response if 'file' arg given", {
   expect_s3_class(err, "async_rejected")
   expect_s3_class(err, "async_http_418")
   expect_true(any(grepl("teapot", readLines(tmp))))
+})
+
+test_that("http_post", {
+  resp <- NULL
+  obj <- list(baz = 100, foo = "bar")
+  data <- jsonlite::toJSON(obj)
+
+  do <- function() {
+    headers <- c("content-type" = "application/json")
+    http_post("https://eu.httpbin.org/post", data = data, headers = headers)$
+      then(http_stop_for_status)$
+      then(function(x) resp <<- x)
+  }
+
+  synchronise(do())
+  expect_equal(resp$status_code, 200)
+  cnt <- jsonlite::fromJSON(rawToChar(resp$content), simplifyVector = TRUE)
+  expect_equal(cnt$json, obj)
 })
