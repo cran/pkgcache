@@ -321,6 +321,14 @@ cmc_async_update <- function(self, private) {
     then(~ private$update_replica_rds())$
     then(~ private$update_primary())$
     then(~ private$data)$
+    catch(error = function(err) {
+      err$message <- msg_wrap(
+        conditionMessage(err), "\n\n",
+        "Could not load or update metadata cache. If you think your local ",
+        "cache is broken, try deleting it with `meta_cache_cleanup()`, or ",
+        "the `$cleanup()` method.")
+      stop(err)
+    })$
     finally(function() private$update_deferred <- NULL)$
     share()
 }
@@ -485,15 +493,7 @@ cmc__async_ensure_cache <- function(self, private, max_age) {
     try_catch_null(private$load_primary_pkgs(max_age))
 
   if (is.null(r)) {
-    self$async_update()$
-      catch(error = function(err) {
-        err$message <- msg_wrap(
-          conditionMessage(err), "\n\n",
-          "Could not load or update metadata cache. If you think your local ",
-          "cache is broken, try deleting it with `meta_cache_cleanup()`, or ",
-          "the `$cleanup()` method.")
-        stop(err)
-      })
+    self$async_update()
   } else {
     async_constant(r)
   }
@@ -725,7 +725,7 @@ cmc__update_replica_rds <- function(self, private, alert) {
   if (length(data_list) == 0) stop("No metadata available")
 
   private$data <- merge_packages_data(.list = data_list)
-  saveRDS(private$data, file = rep_files$rds)
+  saveRDS(private$data, file = rep_files$rds, version = 2)
   private$data_time <- file_get_time(rep_files$rds)
   private$data_messaged <- NULL
 
@@ -859,6 +859,7 @@ extract_revdeps <- function(pkgs, packages, dependencies, recursive) {
 
 cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
   repos[["CRAN"]] <- cran_mirror
+  repos <- unlist(repos)
   res <- tibble(
     name = names(repos),
     url = unname(repos),
