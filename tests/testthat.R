@@ -1,4 +1,6 @@
 library(testthat)
 library(pkgcache)
 
-test_check("pkgcache")
+sessioninfo::package_info("pkgcache", dependencies = TRUE)
+
+test_check("pkgcache", reporter = "summary")

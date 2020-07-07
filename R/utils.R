@@ -15,6 +15,36 @@ vlapply <- function(X, FUN, ...) {
   vapply(X, FUN, FUN.VALUE = logical(1), ...)
 }
 
+vdapply <- function(X, FUN, ...) {
+  vapply(X, FUN, FUN.VALUE = double(1), ...)
+}
+
+mapx <- function(...) {
+  args <- list(...)
+  if (length(args) == 0) stop("No arguments to `mapx()`")
+  fun <- args[[length(args)]]
+  if (!is.function(fun)) stop("Last `mapx()` argument not a function")
+  if (length(args) == 1) stop("No data to `mapx()`")
+  data <- args[-length(args)]
+
+  lens <- setdiff(unique(viapply(data, length)), 1L)
+  if (any(lens == 0)) {
+    data <- lapply(data, function(x) { length(x) <- 0; x })
+    lens <- 0
+  }
+  if (length(lens) > 1) {
+    stop(
+      "Incompatible data lengths in `mapx()`: ",
+       paste(lens, collapse = ", ")
+    )
+  }
+
+  do.call(
+    mapply,
+    c(list(FUN = fun, SIMPLIFY = FALSE, USE.NAMES = FALSE), data)
+  )
+}
+
 lapply_rows <-  function(df, fun, ...) {
   lapply(seq_len(nrow(df)), function(i) fun(df[i,], ...))
 }
@@ -48,34 +78,6 @@ get_platform <- function() {
   .Platform
 }
 
-current_r_platform <- function() {
-  type <- get_platform()$pkgType
-  if (!is_string(type))
-    "source"
-  else if (grepl("^mac", type)) {
-    "macos"
-  } else if (grepl("^win", type)) {
-    "windows"
-  } else {
-    "source"
-  }
-}
-
-default_platforms <- function() unique(c(current_r_platform(), "source"))
-
-default_cran_mirror <- function() {
-  mirror <- getOption("repos")["CRAN"]
-  if (is.null(mirror) || is.na(mirror) || mirror == "@CRAN@") {
-    "https://cran.rstudio.com"
-  } else {
-    mirror
-  }
-}
-
-current_r_version <- function() {
-  as.character(getRversion())
-}
-
 get_minor_r_version <- function(x) {
   x <- package_version(x)
   vapply(unclass(x), function(x) paste(x[1:2], collapse = "."), character(1))
@@ -83,6 +85,9 @@ get_minor_r_version <- function(x) {
 
 get_all_package_dirs <- function(platforms, rversions) {
   minors <- unique(get_minor_r_version(rversions))
+  if (any(package_version(minors) < "3.2")) {
+    stop("pkgcache does not support packages for R versions before R 3.2")
+  }
   res <- lapply(platforms, function(pl) {
     if (pl == "source") {
       cbind("source", "*", "src/contrib")
@@ -92,13 +97,10 @@ get_all_package_dirs <- function(platforms, rversions) {
 
     } else if (pl == "macos") {
       res1 <- lapply(minors, function(v) {
-        if (package_version(v) <= "2.15") {
-          cbind("macos", v, paste0("bin/macosx/leopard/contrib/", v))
-        } else if (package_version(v) == "3.0") {
+        pv <- package_version(v)
+        if (pv >= "4.0") {
           cbind("macos", v, paste0("bin/macosx/contrib/", v))
-        } else if (package_version(v) <= "3.2") {
-          cbind("macos", v, paste0("bin/macosx/mavericks/contrib/", v))
-        } else if (package_version(v) == "3.3") {
+        } else if (package_version(v) <= "3.3") {
           cbind("macos", v, paste0("bin/macosx/mavericks/contrib/", v))
         } else {
           cbind("macos", v, paste0("bin/macosx/el-capitan/contrib/", v))

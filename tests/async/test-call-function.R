@@ -1,6 +1,9 @@
 
 context("call_function")
 
+## We don't use this, so no need to test currently
+return()
+
 test_that("nested event loops", {
   ## Create a function that finishes while its event loop is inactive
   sleeper <- function(x) { Sys.sleep(x); Sys.getpid() }
@@ -118,7 +121,6 @@ test_that("handling call errors", {
 test_that("mix calls with others", {
 
   skip_on_cran()
-  skip_if_offline()
 
   px <- asNamespace("processx")$get_tool("px")
 
@@ -126,7 +128,7 @@ test_that("mix calls with others", {
     when_all(
       delay = delay(1/1000)$
         then(function() 1),
-      http = http_get("https://eu.httpbin.org/status/418")$
+      http = http_get(http$url("/status/418"))$
         then(function(x) x$status_code),
       process = run_process(px, c("outln", "foobar"))$
         then(function(x) str_trim(x$stdout)),
