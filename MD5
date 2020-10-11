@@ -1,10 +1,10 @@
-27e5d2d4b781202a4f92924335590532 *DESCRIPTION
+202aff7dd9f4030fe1f6754059f97d27 *DESCRIPTION
 db8df6852a9a4942bd575b66a884b35e *LICENSE
 95634cc333f79ba78c24ca54acaecb6d *NAMESPACE
-455ae9633418d3b9b0a7c39fa420f0dc *NEWS.md
-be5771d93b200ff74c631dc3fe7a744d *R/aaa-async.R
+1aa252c6cbf5a06998dbc847fde6cb1c *NEWS.md
+fe71709b94e4800df2f057e95f081e2e *R/aaa-async.R
 412edfbcfca916489764b445198bf775 *R/assertions.R
-784c338b241f130a0239fb74f25acbc6 *R/async-http.R
+5b440618b287f88e69fff553784b813a *R/async-http.R
 adfa5896bbdd897421c31569de59ae05 *R/bioc.R
 709c78eb91926179a95090d08d984262 *R/cache-api.R
 e2eaed5d4509cba17cee7da77ab623e9 *R/cache-dirs.R
@@ -16,11 +16,11 @@ a04f6dfaf7993c6faaa5cca0a49c2c5f *R/package-cache.R
 ade71e33394738c7fb1856d1c7364a7c *R/package.R
 7435454cec33bd934d4f378f44c44e5c *R/packages-gz.R
 9dd610a8989812680bfc0a5f070ee097 *R/platform.R
-7fb12718686bbcd4f153a837700f0a81 *R/progress-bar.R
+7b768efbb145f72046ad8f8d291d427f *R/progress-bar.R
 f14f4e40cea87cc704e66789201a08cf *R/rematch.R
 752e7f7902b9ab331c83b31b8eadb27c *R/repo-status.R
 a1dddcf28825d3bb142012771bb8e378 *R/utils.R
-c2e0cf11356b534805f1c3fa659a7850 *README.md
+5bdba03662df64af38a78f6891d3b8c0 *README.md
 9b77155ed6e2e0c284e509d935c72a24 *inst/WORDLIST
 b32c11b2532bef88559f1ba47db6084e *man/bioc_version.Rd
 e4177ce2724199399d719218936c7d58 *man/call_with_callback.Rd
@@ -40,7 +40,7 @@ c4a9fbce2c6fafcd683b5e415b83a4f3 *man/default_cran_mirror.Rd
 1a2f4b97cb7becf2f5832822856f1460 *man/meta_cache_deps.Rd
 ba6cfa77cd0110876c01d2426d45e7f4 *man/package_cache.Rd
 aff5f12e96d521daeeb5fe19ab82186b *man/pkg_cache_api.Rd
-61daa2cab9270802c7cb5c1696fdd3bf *man/pkgcache-package.Rd
+d66a43f5476b1701074dc2ea4a91cdff *man/pkgcache-package.Rd
 cab8d16b60a56ea4a5566bdaaf5d8f49 *man/repo_status.Rd
 69a9851f12798add8133d898a5184db7 *tests/async/helper.R
 033051032b4c1ac6cefdcefa9164807e *tests/async/setup-httpbin.R
@@ -88,8 +88,8 @@ f791b5a9fbf7f53b45ba9862a600a6d6 *tests/async/test-when-all.R
 a46c779ebd37dcb58f0d44f1066f9953 *tests/async/test-when-some.R
 939e79b22a5de0f5933375e56ada173f *tests/async/test-whilst.R
 f67e1373826326f0227f16527891fdcb *tests/async/test-worker-pool.R
-69d89e2be2376bd9648cc7802e78a1bf *tests/test-async.R
-0f8c2e3df92a7a16090155300e89776e *tests/testthat.R
+0bf5c9ff8066fd34c088b6904c385be6 *tests/test-async.R
+54af46a2d689d693d7206eca56300077 *tests/testthat.R
 a9655e51554ec0509968b421537babe0 *tests/testthat/fixtures/PACKAGES-mac.gz
 63c5e5afd91dfc1e4220c45b812e9ae3 *tests/testthat/fixtures/PACKAGES-src.gz
 3c132031ce711af0091b6ef30c5b53c2 *tests/testthat/fixtures/PACKAGES-win.gz
@@ -102,7 +102,7 @@ f18fc1c5d089d0cde75e51348a3dc8b9 *tests/testthat/test-1-metadata-cache-1.R
 49b9a2a41fb9563151606a4dea5695d4 *tests/testthat/test-1-metadata-cache-3.R
 f6e2019fe1597d3bfefa281ddf6230c3 *tests/testthat/test-2-metadata-api.R
 6938ed0b6b2c4277431c28301e019da6 *tests/testthat/test-3-cran-metadata.R
-838cbbd56477378e85ad09995c64f796 *tests/testthat/test-4-async-http.R
+307b1651a77382e8fb0a5df366d1d665 *tests/testthat/test-4-async-http.R
 b56ed510b2e9cd4f6549d244d57b9b97 *tests/testthat/test-5-cache.R
 6cb105f78af9ec4707fe9a21c5d87117 *tests/testthat/test-assertions.R
 d635228c208e2643cce762177062db17 *tests/testthat/test-cache-api.R

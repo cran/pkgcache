@@ -9,10 +9,10 @@ get_async_timeouts <- function(options) {
     if (!is.na(v <- Sys.getenv(toupper(anm), NA_character_))) return (v)
   }
   list(
-    timeout = as.integer(getopt("timeout") %||% 3600),
-    connecttimeout = as.integer(getopt("connecttimeout") %||% 30),
-    low_speed_time = as.integer(getopt("low_speed_time") %||% 30),
-    low_speed_limit = as.integer(getopt("low_speed_limit") %||% 100)
+    timeout = as.integer(getopt("timeout") %||% 0),
+    connecttimeout = as.integer(getopt("connecttimeout") %||% 300),
+    low_speed_time = as.integer(getopt("low_speed_time") %||% 0),
+    low_speed_limit = as.integer(getopt("low_speed_limit") %||% 0)
   )
 }
 
@@ -103,8 +103,8 @@ download_file <- function(url, destfile, etag_file = NULL,
     then(function(resp) {
       "!DEBUG downloaded `url`"
       file.rename(tmp_destfile, destfile)
-      etag <- parse_headers_list(resp$headers)[["etag"]]
-      if (!is.null(etag_file) && !is.null(etag)) {
+      etag <- parse_headers_list(resp$headers)[["etag"]] %||% NA_character_
+      if (!is.null(etag_file) && !is.na(etag[1])) {
         mkdirp(dirname(etag_file))
         writeLines(etag, etag_file)
       }
@@ -226,8 +226,8 @@ download_if_newer <- function(url, destfile, etag_file = NULL,
       } else if (resp$status_code == 200) {
         "!DEBUG downloaded `url`"
         file.rename(tmp_destfile, destfile)
-        etag <- parse_headers_list(resp$headers)[["etag"]]
-        if (!is.null(etag_file) && !is.null(etag)) {
+        etag <- parse_headers_list(resp$headers)[["etag"]] %||% NA_character_
+        if (!is.null(etag_file) && !is.na(etag[1])) {
           mkdirp(dirname(etag_file))
           writeLines(etag, etag_file)
         }
