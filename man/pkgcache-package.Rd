@@ -27,26 +27,26 @@ You can install the released version of pkgcache from
 includes Bioconductor package, and all versions (i.e. both binary and
 source) of the packages for the current platform and R version.\if{html}{\out{<div class="r">}}\preformatted{library(pkgcache)
 meta_cache_list()
-#> # A tibble: 36,184 x 33
-#>    package title version depends suggests built imports archs repodir platform
-#>    <chr>   <chr> <chr>   <chr>   <chr>    <chr> <chr>   <chr> <chr>   <chr>   
-#>  1 A3      "Acc~ 1.0.0   R (>= ~ randomF~ R 3.~  <NA>   <NA>  bin/ma~ macos   
-#>  2 aaSEA   "Ami~ 1.1.0   R(>= 3~ knitr, ~ R 3.~ "DT(>=~ <NA>  bin/ma~ macos   
-#>  3 ABACUS  "App~ 1.0.0   R (>= ~ rmarkdo~ R 3.~ "ggplo~ <NA>  bin/ma~ macos   
-#>  4 abbyyR  "Acc~ 0.5.5   R (>= ~ testtha~ R 3.~ "httr,~ <NA>  bin/ma~ macos   
-#>  5 abc.da~ "Dat~ 1.0     R (>= ~ <NA>     R 3.~  <NA>   <NA>  bin/ma~ macos   
-#>  6 ABC.RAP "Arr~ 0.9.0   R (>= ~ knitr, ~ R 3.~ "graph~ <NA>  bin/ma~ macos   
-#>  7 abc     "Too~ 2.1     R (>= ~ <NA>     R 3.~  <NA>   <NA>  bin/ma~ macos   
-#>  8 abcADM  "Fit~ 1.0     <NA>    <NA>     R 3.~ "Rcpp ~ abcA~ bin/ma~ macos   
-#>  9 ABCana~ "Com~ 1.2.1   R (>= ~ <NA>     R 3.~ "plotr~ <NA>  bin/ma~ macos   
-#> 10 abcdeF~ "ABC~ 0.4     Rglpk,~ LIM,syb~ R 3.~  <NA>   <NA>  bin/ma~ macos   
-#> # ... with 36,174 more rows, and 23 more variables: rversion <chr>,
-#> #   needscompilation <chr>, priority <chr>, ref <chr>, type <chr>,
-#> #   direct <lgl>, status <chr>, target <chr>, mirror <chr>, sources <list>,
-#> #   filesize <int>, sha256 <chr>, sysreqs <chr>, published <dttm>, deps <list>,
-#> #   license <chr>, md5sum <chr>, linkingto <chr>, enhances <chr>,
-#> #   license_restricts_use <chr>, os_type <chr>, license_is_foss <chr>,
-#> #   path <chr>
+#> # A tibble: 39,306 x 32
+#>    package version depends suggests license imports linkingto archs
+#>    <chr>   <chr>   <chr>   <chr>    <chr>   <chr>   <chr>     <chr>
+#>  1 A3      1.0.0   R (>= ~ randomF~ GPL (>~ <NA>    <NA>      <NA> 
+#>  2 AATtoo~ 0.0.1   R (>= ~ <NA>     GPL-3   magrit~ <NA>      <NA> 
+#>  3 ABACUS  1.0.0   R (>= ~ rmarkdo~ GPL-3   ggplot~ <NA>      <NA> 
+#>  4 ABC.RAP 0.9.0   R (>= ~ knitr, ~ GPL-3   graphi~ <NA>      <NA> 
+#>  5 ABCana~ 1.2.1   R (>= ~ <NA>     GPL-3   plotrix <NA>      <NA> 
+#>  6 ABCopt~ 0.15.0  <NA>    testtha~ MIT + ~ Rcpp, ~ Rcpp      i386~
+#>  7 ABCp2   1.2     MASS    <NA>     GPL-2   <NA>    <NA>      <NA> 
+#>  8 ABHgen~ 1.0.1   <NA>    knitr, ~ GPL-3   ggplot~ <NA>      <NA> 
+#>  9 ABPS    0.3     <NA>    testthat GPL (>~ kernlab <NA>      <NA> 
+#> 10 ACA     1.1     R (>= ~ <NA>     GPL     graphi~ <NA>      <NA> 
+#> # ... with 39,296 more rows, and 24 more variables: enhances <chr>,
+#> #   os_type <chr>, priority <chr>, license_is_foss <chr>,
+#> #   license_restricts_use <chr>, repodir <chr>, platform <chr>,
+#> #   rversion <chr>, needscompilation <chr>, ref <chr>, type <chr>,
+#> #   direct <lgl>, status <chr>, target <chr>, mirror <chr>,
+#> #   sources <list>, filesize <int>, sha256 <chr>, sysreqs <chr>,
+#> #   built <chr>, published <dttm>, deps <list>, md5sum <chr>, path <chr>
 }\if{html}{\out{</div>}}
 
 \code{meta_cache_deps()} and \code{meta_cache_revdeps()} can be used to look up
@@ -67,32 +67,36 @@ package files.
 
 The \verb{pkg_cache_*} API is high level, and uses a user level cache:\if{html}{\out{<div class="r">}}\preformatted{pkg_cache_summary()
 #> $cachepath
-#> [1] "/Users/gaborcsardi/Library/Caches/R-pkg/pkg"
+#> [1] "C:\\Users\\csard\\AppData\\Local\\R-pkg\\R-pkg\\Cache/pkg"
 #> 
 #> $files
-#> [1] 45
+#> [1] 945
 #> 
 #> $size
-#> [1] 62270503
+#> [1] 1687305158
 }\if{html}{\out{</div>}}\if{html}{\out{<div class="r">}}\preformatted{pkg_cache_list()
-#> # A tibble: 45 x 9
-#>    fullpath     path      package url      etag  sha256   version platform built
-#>    <chr>        <chr>     <chr>   <chr>    <chr> <chr>    <chr>   <chr>    <int>
-#>  1 /Users/gabo~ src/cont~ usethis <NA>      <NA> 1eb8efc~ <NA>    <NA>         0
-#>  2 /Users/gabo~ src/cont~ testth~ <NA>      <NA> b7e0682~ <NA>    <NA>         0
-#>  3 /Users/gabo~ src/cont~ waldo   <NA>      <NA> 8a33455~ <NA>    <NA>         0
-#>  4 /Users/gabo~ src/cont~ testth~ <NA>      <NA> 95f987c~ <NA>    <NA>         0
-#>  5 /Users/gabo~ src/cont~ testth~ <NA>      <NA> 7c068df~ <NA>    <NA>         0
-#>  6 /Users/gabo~ bin/maco~ polycl~ https:/~ "\"7~ f396afd~ 1.10-0  macos       NA
-#>  7 /Users/gabo~ bin/maco~ vpc     https:/~ "\"d~ ab43b8f~ 1.1.0   macos       NA
-#>  8 /Users/gabo~ bin/maco~ tweenr  https:/~ "\"f~ dc551dd~ 1.0.1   macos       NA
-#>  9 /Users/gabo~ bin/maco~ farver  https:/~ "\"1~ c8b5d2f~ 2.0.3   macos       NA
-#> 10 /Users/gabo~ bin/maco~ ggforce https:/~ "\"4~ d635860~ 0.3.1   macos       NA
-#> # ... with 35 more rows
+#> # A tibble: 945 x 10
+#>    fullpath path  package url   etag  sha256 version platform built
+#>    <chr>    <glu> <chr>   <chr> <chr> <chr>  <chr>   <chr>    <int>
+#>  1 "C:\\Us~ bin/~ assert~ http~ "\"a~ ccc34~ 0.2.1   windows     NA
+#>  2 "C:\\Us~ bin/~ callr   http~ "\"1~ fdd92~ 3.2.0   windows     NA
+#>  3 "C:\\Us~ bin/~ backpo~ http~ "\"1~ 8bf70~ 1.1.4   windows     NA
+#>  4 "C:\\Us~ bin/~ cli     http~ "\"1~ 7aac3~ 1.1.0   windows     NA
+#>  5 "C:\\Us~ bin/~ cliapp  http~ "\"2~ 65bfe~ 0.1.0   windows     NA
+#>  6 "C:\\Us~ bin/~ desc    http~ "\"2~ b69c8~ 1.2.0   windows     NA
+#>  7 "C:\\Us~ bin/~ ellips~ http~ "\"7~ ce5c4~ 0.1.0   windows     NA
+#>  8 "C:\\Us~ bin/~ crayon  http~ "\"a~ bd143~ 1.3.4   windows     NA
+#>  9 "C:\\Us~ bin/~ digest  http~ "\"2~ 72423~ 0.6.18  windows     NA
+#> 10 "C:\\Us~ bin/~ glue    http~ "\"2~ f5e83~ 1.3.1   windows     NA
+#> # ... with 935 more rows, and 1 more variable: vignettes <chr>
 }\if{html}{\out{</div>}}\if{html}{\out{<div class="r">}}\preformatted{pkg_cache_find(package = "dplyr")
-#> # A tibble: 0 x 9
-#> # ... with 9 variables: fullpath <chr>, path <chr>, package <chr>, url <chr>,
-#> #   etag <chr>, sha256 <chr>, version <chr>, platform <chr>, built <int>
+#> # A tibble: 3 x 10
+#>   fullpath path  package url   etag  sha256 version platform built
+#>   <chr>    <glu> <chr>   <chr> <chr> <chr>  <chr>   <chr>    <int>
+#> 1 "C:\\Us~ bin/~ dplyr   http~ "\"1~ da597~ 1.0.1   windows     NA
+#> 2 "C:\\Us~ bin/~ dplyr   http~ "\"1~ 2940a~ 1.0.2   windows     NA
+#> 3 "C:\\Us~ bin/~ dplyr   http~ "\"1~ b32d2~ 1.0.2   windows     NA
+#> # ... with 1 more variable: vignettes <chr>
 }\if{html}{\out{</div>}}
 
 \code{pkg_cache_add_file()} can be used to add a file,
@@ -117,18 +121,18 @@ mirror. This takes priority over the \code{R_BIOC_MIRROR} environment
 variable.
 \item \code{pkgcache_timeout} is the HTTP timeout for all downloads. It is in
 seconds, and the limit for downloading the whole file. Defaults to
-3600, one hour. It corresponds to the \href{https://curl.haxx.se/libcurl/c/CURLOPT_TIMEOUT.html}{\code{TIMEOUT} libcurl option}.
+3600, one hour. It corresponds to the \href{https://curl.se/libcurl/c/CURLOPT_TIMEOUT.html}{\code{TIMEOUT} libcurl option}.
 \item \code{pkgcache_connecttimeout} is the HTTP timeout for the connection
 phase. It is in seconds and defaults to 30 seconds. It corresponds
-to the \href{https://curl.haxx.se/libcurl/c/CURLOPT_CONNECTTIMEOUT.html}{\code{CONNECTTIMEOUT} libcurl option}.
+to the \href{https://curl.se/libcurl/c/CURLOPT_CONNECTTIMEOUT.html}{\code{CONNECTTIMEOUT} libcurl option}.
 \item \code{pkgcache_low_speed_limit} and \code{pkgcache_low_speed_time} are used
 for a more sensible HTTP timeout. If the download speed is less than
 \code{pkgcache_low_speed_limit} bytes per second for at least
 \code{pkgcache_low_speed_time} seconds, the download errors. They
 correspond to the
-\href{https://curl.haxx.se/libcurl/c/CURLOPT_LOW_SPEED_LIMIT.html}{\code{LOW_SPEED_LIMIT}}
+\href{https://curl.se/libcurl/c/CURLOPT_LOW_SPEED_LIMIT.html}{\code{LOW_SPEED_LIMIT}}
 and
-\href{https://curl.haxx.se/libcurl/c/CURLOPT_LOW_SPEED_TIME.html}{\code{LOW_SPEED_TIME}}
+\href{https://curl.se/libcurl/c/CURLOPT_LOW_SPEED_TIME.html}{\code{LOW_SPEED_TIME}}
 curl options.
 }
 }
@@ -144,21 +148,20 @@ Bioconductor mirror. The \code{BioC_mirror} option takes priority over
 this, if set.
 \item \code{PKGCACHE_TIMEOUT} is the HTTP timeout for all downloads. It is in
 seconds, and the limit for downloading the whole file. Defaults to
-3600, one hour. It corresponds to the \href{https://curl.haxx.se/libcurl/c/CURLOPT_TIMEOUT.html}{\code{TIMEOUT} libcurl option}. The
+3600, one hour. It corresponds to the \href{https://curl.se/libcurl/c/CURLOPT_TIMEOUT.html}{\code{TIMEOUT} libcurl option}. The
 \code{pkgcache_timeout} option has priority over this, if set.
 \item \code{PKGCACHE_CONNECTTIMEOUT} is the HTTP timeout for the connection
 phase. It is in seconds and defaults to 30 seconds. It corresponds
-to the \href{https://curl.haxx.se/libcurl/c/CURLOPT_CONNECTTIMEOUT.html}{\code{CONNECTTIMEOUT} libcurl option}.
-The \code{pkgcache_connecttimeout} option takes precedence over this, if
-set.
+to the \href{https://curl.se/libcurl/c/CURLOPT_CONNECTTIMEOUT.html}{\code{CONNECTTIMEOUT} libcurl option}. The
+\code{pkgcache_connecttimeout} option takes precedence over this, if set.
 \item \code{PKGCACHE_LOW_SPEED_LIMIT} and \code{PKGCACHE_LOW_SPEED_TIME} are used
 for a more sensible HTTP timeout. If the download speed is less than
 \code{PKGCACHE_LOW_SPEED_LIMIT} bytes per second for at least
 \code{PKGCACHE_LOW_SPEED_TIME} seconds, the download errors. They
 correspond to the
-\href{https://curl.haxx.se/libcurl/c/CURLOPT_LOW_SPEED_LIMIT.html}{\code{LOW_SPEED_LIMIT}}
+\href{https://curl.se/libcurl/c/CURLOPT_LOW_SPEED_LIMIT.html}{\code{LOW_SPEED_LIMIT}}
 and
-\href{https://curl.haxx.se/libcurl/c/CURLOPT_LOW_SPEED_TIME.html}{\code{LOW_SPEED_TIME}}
+\href{https://curl.se/libcurl/c/CURLOPT_LOW_SPEED_TIME.html}{\code{LOW_SPEED_TIME}}
 curl options. The \code{pkgcache_low_speed_time} and
 \code{pkgcache_low_speed_limit} options have priority over these
 environment variables, if they are set.
@@ -176,7 +179,7 @@ By contributing to this project, you agree to abide by its terms.
 
 \subsection{License}{
 
-MIT © \href{https://rstudio.com}{RStudio Inc}
+MIT (c) \href{https://rstudio.com}{RStudio Inc}
 }
 }
 \seealso{

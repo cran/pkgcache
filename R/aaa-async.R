@@ -390,7 +390,7 @@ async_list <- function(def = NULL) {
 async_tree <- function(def = NULL) {
   def <- def %||% find_sync_frame()$res
   data <- async_list(def)
-  root <- as.character(def$get_id())
+  root <- as.character(get_private(def)$id)
   cli::tree(data, root = root)
 }
 
@@ -542,7 +542,7 @@ find_deferred <- function(id, def = NULL) {
   def <- def %||% find_sync_frame()$res
   if (is.null(def)) stop("No async context")
   search_parents <- function(def) {
-    if (def$get_id() == id) return(def)
+    if (get_private(def)$id == id) return(def)
     prn <- get_private(def)$parents
     for (p in lapply(prn, search_parents)) {
       if (!is.null(p)) return(p)
@@ -666,10 +666,10 @@ debug_all <- function(fun) {
 #' `parent_resolve` function is called. When a parent referred throws an
 #' error, the parent_reject` function is called.
 #'
-#' `parent_resolve` is a function with (up to) three arguments:
-#' `value`, `resolve` and `id`. It will be called with the value of the
-#' parent, the `resolve` callback of the deferred, and the id of the parent.
-#' `parent_resolve` can resolve the dereffed by calling the supplied `resolve`
+#' `parent_resolve` is a function with (up to) two arguments:
+#' `value` and `resolve`. It will be called with the value of the
+#' parent, the `resolve` callback of the deferred.
+#' `parent_resolve` can resolve the deferred by calling the supplied `resolve`
 #' callback, or it can keep waiting on other parents and/or external
 #' computation. It may throw an error to fail the deferred.
 #'
@@ -683,14 +683,11 @@ debug_all <- function(fun) {
 #' * A function with arguments `value` and `resolve`. This function is
 #'   called with the value of the parent, and the resolve callback of the
 #'   deferred.
-#' * A function with arguments `value`, `resolve` and `id`. This is similar
-#'   to the previous one, but the id of the parent is also included in the
-#'   call.
 #'
-#' `parent_reject` is a function with (up to) three arguments:
-#' `value`, `resolve` and `id`. It will be called with the error object
-#' thrown by the parent, the `resolve` callback of the deferred and the id
-#' of the parent.
+#' `parent_reject` is a function with (up to) two arguments:
+#' `value`, `resolve`. It will be called with the error object
+#' thrown by the parent.
+#'
 #' `parent_resolve` can resolve the deferred by calling the supplied
 #' `resolve` callback, or it can keep waiting on other parents and/or
 #' external computation. It may throw an error to fail the deferred. It may
@@ -707,9 +704,7 @@ debug_all <- function(fun) {
 #' * A function with arguments `value` and `resolve`. This function is
 #'   called with the value of the parent, and the resolve callback of the
 #'   deferred.
-#' * A function with arguments `value`, `resolve` and `id`. This is similar
-#'   to the previous one, but the id of the parent is also included in the
-#'   call.
+
 #' * A list of named error handlers, corresponding to the error handlers
 #'   of `$catch()` (and `tryCatch()`). If these error handlers handle the
 #'   parent's error, the deferred is resolved with the result of the
@@ -997,8 +992,7 @@ deferred <- R6Class(
       def_finally(self, private, on_finally),
     cancel = function(reason = "Cancelled")
       def_cancel(self, private, reason),
-    share = function() { private$shared <<- TRUE; invisible(self) },
-    get_id = function() private$id
+    share = function() { private$shared <<- TRUE; invisible(self) }
   ),
 
   private = list(
@@ -1040,6 +1034,8 @@ deferred <- R6Class(
       def__maybe_cancel_parents(self, private, reason),
     add_as_parent = function(child)
       def__add_as_parent(self, private, child),
+    update_parent = function(old, new)
+      def__update_parent(self, private, old, new),
 
     get_info = function()
       def__get_info(self, private)
@@ -1112,7 +1108,7 @@ def__run_action <- function(self, private) {
     if (prt_priv$state != "pending") {
       def__call_then(
         if (prt_priv$state == "fulfilled") "parent_resolve" else "parent_reject",
-        self, prt_priv$value, prt_priv$id)
+        self, prt_priv$value)
     }
     prt_priv$run_action()
   }
@@ -1190,21 +1186,33 @@ def__resolve <- function(self, private, value) {
   if (is_deferred(value)) {
     private$parent_resolve <- def__make_parent_resolve(NULL)
     private$parent_reject <- def__make_parent_reject(NULL)
-    value$then(self)
+
+    # we need this in case self was shared and had multiple children
+    val_pvt <- get_private(value)
+    val_pvt$id <- private$id
+    val_pvt$shared <- private$shared
+    val_pvt$dead_end <- private$dead_end # This should not happen, though
+
+    for (child in private$children) {
+      ch_pvt <- get_private(child)
+      ch_pvt$update_parent(self, value)
+    }
+
+    val_pvt$run_action()
 
   } else {
     if (!private$dead_end && !length(private$children) &&
         !private$shared) {
       ## This cannot happen currently
-      "!DEBUG ??? DEAD END `self$get_id()`"   # nocov
+      "!DEBUG ??? DEAD END `private$id`"   # nocov
       warning("Computation going nowhere...")   # nocov
     }
 
-    "!DEBUG +++ RESOLVE `self$get_id()`"
+    "!DEBUG +++ RESOLVE `private$id`"
     private$state <- "fulfilled"
     private$value <- value
     for (child in private$children) {
-      def__call_then("parent_resolve", child, value, self$get_id())
+      def__call_then("parent_resolve", child, value)
     }
     private$maybe_cancel_parents(private$value)
     private$parents <- NULL
@@ -1229,19 +1237,16 @@ def__make_error_object <- function(self, private, err) {
 
 def__make_parent_resolve <- function(fun) {
   if (is.null(fun)) {
-    function(value, resolve, id) resolve(value)
+    function(value, resolve) resolve(value)
   } else if (!is.function(fun)) {
     fun <- as_function(fun)
-    function(value, resolve, id) resolve(fun(value))
+    function(value, resolve) resolve(fun(value))
   } else if (num_args(fun) == 0) {
-    function(value, resolve, id) resolve(fun())
+    function(value, resolve) resolve(fun())
   } else if (num_args(fun) == 1) {
-    function(value, resolve, id) resolve(fun(value))
+    function(value, resolve) resolve(fun(value))
   } else if (identical(names(formals(fun)),
                        c("value", "resolve"))) {
-    function(value, resolve, id) fun(value, resolve)
-  } else if (identical(names(formals(fun)),
-                       c("value", "resolve", "id"))) {
     fun
   } else {
     stop("Invalid parent_resolve callback")
@@ -1250,21 +1255,18 @@ def__make_parent_resolve <- function(fun) {
 
 def__make_parent_reject <- function(fun) {
   if (is.null(fun)) {
-    function(value, resolve, id) stop(value)
+    function(value, resolve) stop(value)
   } else if (is.list(fun)) {
     def__make_parent_reject_catch(fun)
   } else if (!is.function(fun)) {
     fun <- as_function(fun)
-    function(value, resolve, id) resolve(fun(value))
+    function(value, resolve) resolve(fun(value))
   } else if (num_args(fun) == 0) {
-    function(value, resolve, id) resolve(fun())
+    function(value, resolve) resolve(fun())
   } else if (num_args(fun) == 1) {
-    function(value, resolve, id) resolve(fun(value))
+    function(value, resolve) resolve(fun(value))
   } else if (identical(names(formals(fun)),
                        c("value", "resolve"))) {
-    function(value, resolve, id) fun(value, resolve)
-  } else if (identical(names(formals(fun)),
-                       c("value", "resolve", "id"))) {
     fun
   } else {
     stop("Invalid parent_reject callback")
@@ -1273,7 +1275,7 @@ def__make_parent_reject <- function(fun) {
 
 def__make_parent_reject_catch <- function(handlers) {
   handlers <- lapply(handlers, as_function)
-  function(value, resolve, id) {
+  function(value, resolve) {
     ok <- FALSE
     ret <- tryCatch({
       quo <- quo(tryCatch(stop(value), !!!handlers))
@@ -1292,7 +1294,7 @@ def__reject <- function(self, private, reason) {
 
   ## 'reason' cannot be a deferred here
 
-  "!DEBUG !!! REJECT `self$get_id()`"
+  "!DEBUG !!! REJECT `private$id`"
   private$state <- "rejected"
   private$value <- private$make_error_object(reason)
   if (inherits(private$value, "async_cancelled")) {
@@ -1302,7 +1304,7 @@ def__reject <- function(self, private, reason) {
     private$cancel_callback(conditionMessage(private$value))
   }
   for (child in private$children) {
-    def__call_then("parent_reject", child, private$value, self$get_id())
+    def__call_then("parent_reject", child, private$value)
   }
   private$maybe_cancel_parents(private$value)
   private$parents <- NULL
@@ -1319,8 +1321,8 @@ def__maybe_cancel_parents <- function(self, private, reason) {
   }
 }
 
-def__call_then <- function(which, x, value, id)  {
-  force(value); force(id)
+def__call_then <- function(which, x, value)  {
+  force(value);
   private <- get_private(x)
   if (!private$running) return()
   if (private$state != "pending") return()
@@ -1332,13 +1334,13 @@ def__call_then <- function(which, x, value, id)  {
         debug1(private[[which]])        # nocov
       }
       `__async_data__` <- list(private$id, "parent", x)
-      private[[which]](value, private$resolve, id)
+      private[[which]](value, private$resolve)
     },
     function(err, res) if (!is.null(err)) private$reject(err))
 }
 
 def__add_as_parent <- function(self, private, child) {
-  "!DEBUG EDGE [`private$id` -> `child$get_id()`]"
+  "!DEBUG EDGE [`private$id` -> `get_private(child)$id`]"
 
   if (! identical(private$event_loop, get_private(child)$event_loop)) {
     err <- make_error(
@@ -1357,11 +1359,22 @@ def__add_as_parent <- function(self, private, child) {
     ## Nothing to do
 
   } else if (private$state == "fulfilled") {
-    def__call_then("parent_resolve", child, private$value, self$get_id())
+    def__call_then("parent_resolve", child, private$value)
 
   } else {
-    def__call_then("parent_reject", child, private$value, self$get_id())
+    def__call_then("parent_reject", child, private$value)
   }
+}
+
+def__update_parent <- function(self, private, old, new) {
+  for (i in seq_along(private$parents)) {
+    if (identical(private$parents[[i]], old)) {
+      private$parents[[i]] <- new
+    }
+  }
+
+  new_pvt <- get_private(new)
+  new_pvt$add_as_parent(self)
 }
 
 def__progress <- function(self, private, data) {
@@ -1374,10 +1387,10 @@ def__get_info <- function(self, private) {
   res <- data.frame(
     stringsAsFactors = FALSE,
     id = private$id,
-    parents = I(list(viapply(private$parents, function(x) x$get_id()))),
+    parents = I(list(viapply(private$parents, function(x) get_private(x)$id))),
     label = as.character(private$id),
     call = I(list(private$mycall)),
-    children = I(list(viapply(private$children, function(x) x$get_id()))),
+    children = I(list(viapply(private$children, function(x) get_private(x)$id))),
     type = private$type %||%  "unknown",
     running = private$running,
     state = private$state,
@@ -1499,19 +1512,19 @@ async_detect_nolimit <- function(.x, .p, ...) {
   defs <- lapply(.x, async(.p), ...)
   nx <- length(defs)
   done <- FALSE
-  ids <- NULL
 
-  deferred$new(
+  self <- deferred$new(
     type = "async_detect", call = sys.call(),
-    parents = defs,
     action = function(resolve) {
-      ids <<- viapply(defs, function(x) x$get_id())
+      lapply(seq_along(defs), function(idx) {
+        defs[[idx]]$then(function(val) if (isTRUE(val)) idx)$then(self)
+      })
       if (nx == 0) resolve(NULL)
     },
-    parent_resolve = function(value, resolve, id) {
-      if (!done && isTRUE(value)) {
+    parent_resolve = function(value, resolve) {
+      if (!done && !is.null(value)) {
         done <<- TRUE
-        resolve(.x[[match(id, ids)]])
+        resolve(.x[[value]])
       } else if (!done) {
         nx <<- nx - 1L
         if (nx == 0) resolve(NULL)
@@ -1529,24 +1542,27 @@ async_detect_limit <- function(.x, .p, ..., .limit = .limit) {
   done <- FALSE
   nextone <- .limit + 1L
   firsts <- lapply(.x[seq_len(.limit)], .p, ...)
-  ids <- viapply(firsts, function(x) x$get_id())
 
   self <- deferred$new(
     type = "async_detect (limit)", call = sys.call(),
-    parents = firsts,
-    action = function(resolve) if (nx == 0) resolve(NULL),
-    parent_resolve = function(value, resolve, id) {
-      if (!done && isTRUE(value)) {
+    action = function(resolve) {
+      lapply(seq_along(firsts), function(idx) {
+        firsts[[idx]]$then(function(val) if (isTRUE(val)) idx)$then(self)
+      })
+      if (nx == 0) resolve(NULL)
+    },
+    parent_resolve = function(value, resolve) {
+      if (!done && !is.null(value)) {
         done <<- TRUE
-        resolve(.x[[match(id, ids)]])
+        resolve(.x[[value]])
       } else if (!done) {
         nx <<- nx - 1L
         if (nx == 0) {
           resolve(NULL)
         } else if (nextone <= len) {
+          idx <- nextone
           dx <- .p(.x[[nextone]], ...)
-          ids <<- c(ids, dx$get_id())
-          dx$then(self)
+          dx$then(function(val) if (isTRUE(val)) idx)$then(self)
           nextone <<- nextone + 1L
         }
       }
@@ -1931,13 +1947,16 @@ el__io_poll <- function(self, private, timeout) {
         timeout = FALSE
       )
 
+      error <- FALSE
       if (p$type == "r-process") {
-        res$result = p$data$process$get_result()
+        res$result <- tryCatch({
+          p$data$process$get_result()
+        }, error = function(e) { error <<- TRUE; e })
       }
 
       unlink(c(p$data$stdout, p$data$stderr))
 
-      if (p$data$error_on_status && res$status != 0) {
+      if (p$data$error_on_status && (error || res$status != 0)) {
         err <- make_error("process exited with non-zero status")
         err$data <- res
         res <- NULL
@@ -2473,7 +2492,7 @@ http_head <- mark_as_async(http_head)
 
 #' Asynchronous HTTP POST request
 #'
-#' Start an HTTP POST requrest in the background, and report its completion
+#' Start an HTTP POST request in the background, and report its completion
 #' via a deferred value.
 #'
 #' @inheritParams http_get
@@ -2531,12 +2550,13 @@ get_default_curl_options <- function(options) {
   }
   modifyList(
     options,
-    list(
+    drop_nulls(list(
       timeout = as.integer(getopt("timeout") %||% 0),
       connecttimeout = as.integer(getopt("connecttimeout") %||% 300),
       low_speed_time = as.integer(getopt("low_speed_time") %||% 0),
-      low_speed_limit = as.integer(getopt("low_speed_limit") %||% 0)
-    )
+      low_speed_limit = as.integer(getopt("low_speed_limit") %||% 0),
+      cainfo = getopt("cainfo")
+    ))
   )
 }
 
@@ -2997,7 +3017,6 @@ async_map_limit <- function(.x, .f, ..., .args = list(), .limit = Inf) {
 
   nextone <- .limit + 1L
   firsts <- lapply_args(.x[seq_len(.limit)], .f, .args = args)
-  ids <- viapply(firsts, function(x) x$get_id())
 
   result <- structure(
     vector(mode = "list", length = len),
@@ -3006,17 +3025,23 @@ async_map_limit <- function(.x, .f, ..., .args = list(), .limit = Inf) {
 
   self <- deferred$new(
     type = "async_map (limit)", call = sys.call(),
-    parents = firsts,
-    action = function(resolve) if (nx == 0) resolve(result),
-    parent_resolve = function(value, resolve, id) {
+    action = function(resolve) {
+      self; nx; firsts
+      lapply(seq_along(firsts), function(idx) {
+        firsts[[idx]]$then(function(val) list(idx, val))$then(self)
+      })
+      if (nx == 0) resolve(result)
+    },
+    parent_resolve = function(value, resolve) {
+      self; nx; nextone; result; .f
       nx <<- nx - 1L
-      result[[match(id, ids)]] <<- value
+      result[ value[[1]] ] <<- value[2]
       if (nx == 0) {
         resolve(result)
       } else if (nextone <= len) {
+        idx <- nextone
         dx <- do.call(".f", c(list(.x[[nextone]]), args))
-        ids <<- c(ids, dx$get_id())
-        dx$then(self)
+        dx$then(function(val) list(idx, val))$then(self)
         nextone <<- nextone + 1L
       }
     }
@@ -3117,7 +3142,7 @@ run_process <- mark_as_async(run_process)
 
 run_r_process <- function(func, args = list(), libpath = .libPaths(),
   repos = c(getOption("repos"), c(CRAN = "https://cloud.r-project.org")),
-  cmdargs = c("--no-site-file", "-s", "--no-save", "--no-restore"),
+  cmdargs = c("--no-site-file", "--slave", "--no-save", "--no-restore"),
   system_profile = FALSE, user_profile = FALSE, env = rcmd_safe_env()) {
 
   func; args; libpath; repos; cmdargs; system_profile; user_profile; env
@@ -3230,23 +3255,25 @@ async_replicate_nolimit <- function(n, task, ...) {
 async_replicate_limit  <- function(n, task, ..., .limit = .limit) {
   n; .limit
 
-  defs <- ids <- nextone <- result <- NULL
+  defs <- nextone <- result <- NULL
 
   self <- deferred$new(
     type = "async_replicate", call = sys.call(),
     action = function(resolve) {
       defs <<- lapply(seq_len(n), function(i) task(...))
-      ids <<- viapply(defs, function(x) x$get_id())
       result <<- vector(n, mode = "list")
-      for (i in 1:.limit) defs[[i]]$then(self)
+      lapply(seq_len(.limit), function(idx) {
+        defs[[idx]]$then(function(val) list(idx, val))$then(self)
+      })
       nextone <<- .limit + 1L
     },
-    parent_resolve = function(value, resolve, id) {
-      result[[match(id, ids)]] <<- value
+    parent_resolve = function(value, resolve) {
+      result[ value[[1]] ] <<- value[2]
       if (nextone > n) {
         resolve(result)
       } else {
-        defs[[nextone]]$then(self)
+        idx <- nextone
+        defs[[nextone]]$then(function(val) list(idx, val))$then(self)
         nextone <<- nextone + 1L
       }
     }
@@ -3422,9 +3449,19 @@ synchronise <- function(expr) {
   ## Mark this frame as a synchronization point, for debugging
   `__async_synchronise_frame__` <- TRUE
 
+  ## This is to allow `expr` to contain `async_list()` etc
+  ## calls that look for the top promise. Without this there
+  ## is no top promise. This is a temporary top promise that
+  ## is never started.
+  res <- async_constant(NULL)
+
   res <- expr
 
   if (!is_deferred(res)) return(res)
+
+  ## We need an extra final promise that cannot be replaced,
+  ## so priv stays the same.
+  res <- res$then(function(x) x)
 
   priv <- get_private(res)
   if (! identical(priv$event_loop, new_el)) {
@@ -3594,16 +3631,20 @@ print.async_rejected_summary <- function(x, ...) {
 async_timeout <- function(task, timeout, ...) {
   task <- async(task)
   force(timeout)
+  list(...)
   done <- FALSE
 
-  deferred$new(
+  self <- deferred$new(
     type = "timeout", call = sys.call(),
-    parents = list(d1 <- task(...), d2 <- delay(timeout)),
-    parent_resolve = function(value, resolve, id) {
+    action = function(resolve) {
+      task(...)$then(function(x) list("ok", x))$then(self)
+      delay(timeout)$then(~ list("timeout"))$then(self)
+    },
+    parent_resolve = function(value, resolve) {
       if (!done) {
         done <<- TRUE
-        if (id == d1$get_id()) {
-          resolve(value)
+        if (value[[1]] == "ok") {
+          resolve(value[[2]])
         } else {
           stop("Timed out")
         }
@@ -3790,10 +3831,10 @@ async_try_each <- function(..., .list = list()) {
       wh <<- 1L
       defs[[wh]]$then(self)
     },
-    parent_resolve = function(value, resolve, id) {
+    parent_resolve = function(value, resolve) {
       resolve(value)
     },
-    parent_reject = function(value, resolve, id) {
+    parent_reject = function(value, resolve) {
       errors <<- c(errors, list(value))
       if (wh == nx) {
         err <- structure(
@@ -3908,6 +3949,7 @@ call_with_callback <- function(func, callback, info = NULL) {
         recerror <<- e
         recerror$aframe <<- recerror$aframe %||% find_async_data_frame()
         recerror$calls <<- recerror$calls %||% sys.calls()
+        if (is.null(recerror[["call"]])) recerror[["call"]] <<- sys.call()
         recerror$parents <<- recerror$parents %||% sys.parents()
         recerror[names(info)] <<- info
         handler <- getOption("async.error")
@@ -3961,6 +4003,7 @@ file_size <- function(...) {
 }
 
 read_all <- function(filename, encoding) {
+  if (is.null(filename)) return(NULL)
   r <- readBin(filename, what = raw(0), n = file_size(filename))
   s <- rawToChar(r)
   Encoding(s) <- encoding
@@ -4006,25 +4049,31 @@ str_trim <- function(x) {
 when_all <- function(..., .list = list()) {
 
   defs <- c(list(...), .list)
-  isdef <- vlapply(defs, is_deferred)
-  nx <- sum(isdef)
+  nx <- 0L
 
-  deferred$new(
-    type = "when_all", call = sys.call(),
-    parents = defs[isdef],
-    action = function(resolve) if (nx == 0) resolve(defs),
+  self <- deferred$new(
+    type = "when_all",
+    call = sys.call(),
+    action = function(resolve) {
+      self; nx; defs
+      lapply(seq_along(defs), function(idx) {
+        idx
+        if (is_deferred(defs[[idx]])) {
+          nx <<- nx + 1L
+          defs[[idx]]$then(function(val) list(idx, val))$then(self)
+        }
+      })
+      if (nx == 0) resolve(defs)
+    },
     parent_resolve = function(value, resolve) {
+      defs[ value[[1]] ] <<- value[2]
       nx <<- nx - 1L
-      if (nx == 0L) resolve(lapply(defs, get_value_x))
+      if (nx == 0L) resolve(defs)
     }
   )
 }
 
 when_all <- mark_as_async(when_all)
-
-get_value_x <- function(x) {
-  if (is_deferred(x)) get_private(x)$value else x
-}
 
 #' Resolve a deferred as soon as some deferred from a list resolve
 #'
@@ -4396,9 +4445,9 @@ wp__try_start <- function(self, private) {
 #' 1. we successfully interrupted a computation, then
 #'    we'll just poll_io(), and read() and we'll get back an
 #'    interrupt error.
-#' 2. The compuration has finished, so we did not interrupt it.
+#' 2. The computation has finished, so we did not interrupt it.
 #'    In this case the background R process will apply the interrupt
-#'    to the next compuration (at least on Unix) so the bg process
+#'    to the next computation (at least on Unix) so the bg process
 #'    needs to run a quick harmless call to absorb the interrupt.
 #'    We can use `Sys.sleep()` for this, and `write_input()` directly
 #'    for speed and simplicity.
@@ -4446,4 +4495,81 @@ wp__interrupt_worker <- function(self, private, pid) {
   }
 
   invisible()
+}
+
+#' External process via a process generator
+#'
+#' Wrap any [processx::process] object into a deferred value. The
+#' process is created by a generator function.
+#'
+#' @param process_generator Function that returns a [processx::process]
+#'   object. See details below about the current requirements for the
+#'   returned process.
+#' @param error_on_status Whether to fail if the process terminates
+#'   with a non-zero exit status.
+#' @param ... Extra arguments, passed to `process_generator`.
+#' @return Deferred object.
+#'
+#' Current requirements for `process_generator`:
+#' * It must take a `...` argument, and pass it to
+#'   `processx::process$new()`.
+#' * It must use the `poll_connection = TRUE` argument.
+#' These requirements might be relaxed in the future.
+#'
+#' If you want to obtain the standard output and/or error of the
+#' process, then `process_generator` must redirect them to files.
+#' If you want to discard them, `process_generator` can set them to
+#' `NULL`.
+#'
+#' `process_generator` should not use pipes (`"|"`) for the standard
+#' output or error, because the process will stop running if the
+#' pipe buffer gets full. We currently never read out the pipe buffer.
+#'
+#' @noRd
+#' @examples
+#' \dontrun{
+#' lsgen <- function(dir = ".", ...) {
+#'   processx::process$new(
+#'     "ls",
+#'     dir,
+#'     poll_connection = TRUE,
+#'     stdout = tempfile(),
+#'     stderr = tempfile(),
+#'     ...
+#'   )
+#' }
+#' afun <- function() {
+#'   external_process(lsgen)
+#' }
+#' synchronise(afun())
+#' }
+
+external_process <- function(process_generator, error_on_status = TRUE,
+                             ...) {
+
+  process_generator; error_on_status; args <- list(...)
+  args$encoding <- args$encoding %||% ""
+
+  id <- NULL
+
+  deferred$new(
+    type = "external_process", call = sys.call(),
+    action = function(resolve) {
+      resolve
+      reject <- environment(resolve)$private$reject
+      px <- do.call(process_generator, args)
+      stdout <- px$get_output_file()
+      stderr <- px$get_error_file()
+      pipe <- px$get_poll_connection()
+      id <<- get_default_event_loop()$add_process(
+        list(pipe),
+        function(err, res) if (is.null(err)) resolve(res) else reject(err),
+        list(process = px, stdout = stdout, stderr = stderr,
+             error_on_status = TRUE, encoding = args$encoding)
+      )
+    },
+    on_cancel = function(reason) {
+      if (!is.null(id)) get_default_event_loop()$cancel(id)
+    }
+  )
 }

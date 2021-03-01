@@ -1,4 +1,20 @@
 
+# pkgcache 1.2.0
+
+* New `repo_add()`, `repo_get()`, `repo_resolve()` and `with_repo()`
+  functions to query and manipulate repositories.
+
+* `meta_cache_*()` functions now handle `getOption("repos")` changes
+  correctly.
+
+* Failed metadata downloads now do not trigger metadata updates (#52).
+
+* New `bioc_release_version()`, `bioc_devel_version()`, `bioc_repos()`
+  helper functions to deal with Bioconductor repositories.
+
+* Metadata cache functions, e.g. `meta_cache_deps()` etc. now allow
+  specifying the dependency types in all lowercase (#54).
+
 # pkgcache 1.1.1
 
 * `package_cache` now does not fail if the web server does not send an
