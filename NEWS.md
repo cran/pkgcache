@@ -1,4 +1,8 @@
 
+# pkgcache 1.2.1
+
+No user visible changes.
+
 # pkgcache 1.2.0
 
 * New `repo_add()`, `repo_get()`, `repo_resolve()` and `with_repo()`
