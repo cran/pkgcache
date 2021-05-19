@@ -1,6 +1,6 @@
 Package: pkgcache
 Title: Cache 'CRAN'-Like Metadata and R Packages
-Version: 1.2.1
+Version: 1.2.2
 Authors@R: 
     person(given = "Gábor",
            family = "Csárdi",
@@ -18,12 +18,12 @@ Imports: assertthat, callr (>= 2.0.4.9000), cli (>= 2.0.0), curl (>=
         processx (>= 3.3.0.9001), rappdirs, rlang, tibble, tools,
         utils, uuid
 Suggests: covr, debugme, desc, fs, mockery, pingr, rprojroot,
-        sessioninfo, testthat, withr
+        sessioninfo, testthat, webfakes, withr
 Depends: R (>= 3.1)
 RoxygenNote: 7.1.1.9001
 NeedsCompilation: no
-Packaged: 2021-04-14 07:21:34 UTC; gaborcsardi
+Packaged: 2021-05-19 16:17:53 UTC; gaborcsardi
 Author: Gábor Csárdi [aut, cre]
 Maintainer: Gábor Csárdi <csardi.gabor@gmail.com>
 Repository: CRAN
-Date/Publication: 2021-04-14 07:40:09 UTC
+Date/Publication: 2021-05-19 17:10:03 UTC
