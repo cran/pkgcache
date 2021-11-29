@@ -17,15 +17,36 @@ packages_gz_cols <- function()  {
 read_packages_file <- function(path, mirror, repodir, platform,
                                type = "standard", meta_path = NA_character_,
                                ..., .list = list()) {
-  pkgs <- as_tibble(read.dcf.gz(path))
+
+  # We might have empty PACKAGES.gz files, we treat them as empty here
+  if (file.exists(path) && file.size(path) == 0) {
+    pkgs <- tibble()
+  } else {
+    pkgs <- parse_packages(path)
+  }
   meta <- read_metadata_file(meta_path)
   extra <- c(
-    list(repodir = repodir, platform = platform),
+    list(repodir = repodir),
     list(...), .list)
   assert_that(all_named(extra))
   pkgs[names(extra)] <-
     if (nrow(pkgs)) extra else replicate(length(extra), character())
   names(pkgs) <- tolower(names(pkgs))
+
+  ## If Windows, then we need to check which binary has i386 support
+  if (platform %in% c("i386+x86_64-w64-mingw32",
+                      "i386-w64-mingw32", "x86_64-w64-mingw32")) {
+    pkgs$platform <- "i386+x86_64-w64-mingw32"
+    if ("archs" %in% colnames(pkgs)) {
+      archs <- gsub(" ", "", fixed = TRUE, pkgs$archs)
+      p32 <- !is.na(archs) & archs == "i386"
+      pkgs$platform[p32] <- "i386-w64-mingw32"
+      p64 <- !is.na(archs) & archs == "x64"
+      pkgs$platform[p64] <- "x86_64-w64-mingw32"
+    }
+  } else {
+    pkgs$platform <- platform
+  }
 
   if (! "needscompilation" %in% names(pkgs)) {
     pkgs$needscompilation <- if (! "built" %in% names(pkgs)) {
@@ -54,7 +75,8 @@ read_packages_file <- function(path, mirror, repodir, platform,
     mirror, platform, pkgs$target, repodir, pkgs$package, pkgs$version, type)
 
   if (!is.null(meta)) {
-    map <- match(pkgs$target, paste0(repodir, "/", meta$file))
+    metatarget <- paste0(repodir, "/", meta$file)
+    map <- match(pkgs$target, metatarget)
     pkgs$filesize  <- meta$size[map]
     pkgs$sha256    <- meta$sha[map]
     pkgs$sysreqs   <- meta$sysreqs[map]
@@ -62,10 +84,28 @@ read_packages_file <- function(path, mirror, repodir, platform,
     pkgs$published <- meta$published[map]
     pkgs$published[pkgs$published == ""] <- NA_character_
     pkgs$published <- as.POSIXct(pkgs$published, tz = "GMT")
+
+    # fall back to previous version for filesize and sysreqs
+    nameonly <- function(x) sub("_[^_]*$", "", x)
+    map2 <- match(nameonly(pkgs$target), nameonly(metatarget))
+    filesize2 <- meta$size[map2]
+    sysreqs2 <- meta$sysreqs[map2]
+    pkgs$filesize <- ifelse(is.na(pkgs$filesize), filesize2, pkgs$filesize)
+    pkgs$sysreqs <- ifelse(is.na(pkgs$sysreqs), sysreqs2, pkgs$sysreqs)
+
   } else {
     pkgs$filesize <- rep(NA_integer_, nrow(pkgs))
     pkgs$sha256 <- pkgs$sysreqs <- pkgs$built <- pkgs$published <-
         rep(NA_character_, nrow(pkgs))
+  }
+
+  # If we only want one Windows platform, then filter here
+  if (platform %in% c("i386-w64-mingw32", "x86_64-w64-mingw32")) {
+    drop <- pkgs$platform != platform &
+      pkgs$platform != "i386+x86_64-w64-mingw32"
+    if (any(drop)) {
+      pkgs <- pkgs[!drop, ]
+    }
   }
 
   deps <- packages_parse_deps(pkgs)
@@ -179,17 +219,18 @@ packages_make_sources <- function(mirror, platform, target, repodir,
 
   url <- paste0(mirror, "/", target)
 
-  if (type == "cran" && platform == "macos") {
+  os <- parse_platform(platform)$os
+  if (type == "cran" && !is.na(os) && grepl("^darwin", os)) {
     macurl <- paste0("https://mac.r-project.org/", target)
     zip_vecs(url, macurl)
 
-  } else if (type != "cran" || platform != "source") {
-    as.list(url)
-
-  } else {
+  } else if (type == "cran" && platform == "source") {
     url2 <- paste0(mirror, "/", repodir, "/Archive/", package, "_",
                    version, ".tar.gz")
     zip_vecs(url, url2)
+
+  } else {
+    as.list(url)
   }
 }
 

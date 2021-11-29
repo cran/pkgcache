@@ -1,4 +1,32 @@
 
+# pkgcache 1.3.0
+
+* pkgcache now works better on M1 macs.
+
+* `current_r_platform()` does a much better job now. In particular, on
+  Linux it includes the name and release of the distribution.
+  The new `current_r_platform_data()` function returns the platform information
+  as a data frame, instead of a single string.
+
+* Metadata is now more accurate for Windows packages that are typically
+  not multi-arch any more on R 4.2.0 (current R-devel).
+
+* pkgcache has its own DCF metadata parser now, which is much faster, and
+  it parses all fields of `PACAKGES*` and `DESCRIPTION` files.
+
+* New `parse_installed()` function to get the metadata of all installed
+  packages in a library. It uses the new DCF parser, so it is quite fast.
+
+* `meta_cache_list()` and related functions now correctly set the
+  `rversion` column of source R packages to `"*"`.
+
+* pkgcache now users HTTP 1.1 on macOS, to work around a possible
+  slowdown issue with libcurl for HTTP/2.
+
+* pkgcache now uses our extra metadata (file sizes, system requirements,
+  etc.) for RStudio Package Manager (RSPM) repositories as well, as long
+  as they are named `RSPM ` in `getOption("repos")`.
+
 # pkgcache 1.2.2
 
 * The default location of the cache has changed to align with the
@@ -33,7 +61,7 @@ No user visible changes.
 * `package_cache` has now much relaxed HTTP timeouts, and handles
   downloading many packages (slowly) much better.
 
-* The package download progress bar can now be supressed by setting
+* The package download progress bar can now be suppressed by setting
   the `pkg.show_progress` option to `FALSE`.
 
 # pkgcache 1.1.0
@@ -73,7 +101,7 @@ No user visible changes.
 
 # pkgcache 1.0.4
 
-* Fix handling of Bioconducor versions and repositories, see
+* Fix handling of Bioconductor versions and repositories, see
   README for the details.
 
 * Now different versions of pkgcache, that potentially have different

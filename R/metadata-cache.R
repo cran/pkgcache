@@ -52,8 +52,7 @@ cmc__data <- new.env(parent = emptyenv())
 #'   the user level cache directory of the machine.
 #' * `replica_path`: Path of the replica. Defaults to a temporary directory
 #'   within the session temporary directory.
-#' * `platforms`: Subset of `c("macos", "windows", "source")`, platforms
-#'   to get data for.
+#' * `platforms`: see [default_platforms()] for possible values.
 #' * `r_version`: R version to create the cache for.
 #' * `bioc`: Whether to include BioConductor packages.
 #' * `cran_mirror`: CRAN mirror to use, this takes precedence over `repos`.
@@ -125,7 +124,12 @@ cmc__data <- new.env(parent = emptyenv())
 #' * `imports`: `Imports` field from `DESCRIPTION`, or `NA_character_`.
 #' * `archs`: `Archs` entries from `PACKAGES` files. Might be missing.
 #' * `repodir`: The directory of the file, inside the repository.
-#' * `platform`: Possible values: `macos`, `windows`, `source`.
+#' * `platform`: This is a character vector. See [default_platforms()] for
+#'    more about platform names. In practice each value of the `platform`
+#'    column is either
+#'    * `"source"` for source packages,
+#'    * a platform string, e.g. `x86_64-apple-darwin17.0` for macOS
+#'      packages compatible with macOS High Sierra or newer.
 #' * `needscompilation`: Whether the package needs compilation.
 #' * `type`: `bioc` or `cran`  currently.
 #' * `target`: The path of the package file inside the repository.
@@ -142,7 +146,7 @@ cmc__data <- new.env(parent = emptyenv())
 #' * `enhances`: `Enhances` field from `DESCRIPTION`, or `NA_character_`.
 #' * `os_type`: `unix` or `windows` for OS specific packages. Usually `NA`.
 #' * `priority`: "optional", "recommended" or `NA`. (Base packages are
-#'   normalliy not included in the list, so "base" should not appear here.)
+#'   normally not included in the list, so "base" should not appear here.)
 #' * `md5sum`: MD5 sum, if available, may be `NA`.
 #' * `sysreqs`: For CRAN packages, the `SystemRequirements` field, the
 #'   required system libraries or other software for the package. For
@@ -241,7 +245,7 @@ cranlike_metadata_cache <- R6Class(
     ## We use this to make sure that different versions of pkgcache can
     ## share the same metadata cache directory. It is used to calculate
     ## the hash of the cached RDS file.
-    cache_version = "2",
+    cache_version = "3",
 
     data = NULL,
     data_time = NULL,
@@ -431,13 +435,14 @@ cmc__get_cache_files <- function(self, private, which) {
   pkgs_files <- file.path(pkgs_dirs, "PACKAGES.gz")
   pkgs_files2 <- file.path(pkgs_dirs, "PACKAGES")
   mirror <- rep(private$repos$url, each = nrow(private$dirs))
+  name <- tolower(rep(private$repos$name, each = nrow(private$dirs)))
   type <- rep(private$repos$type, each = nrow(private$dirs))
   r_version <- rep(private$dirs$rversion, nrow(private$repos))
   bioc_version <- rep(private$repos$bioc_version, each = nrow(private$dirs))
 
   pkg_path <- file.path(root, "_metadata", repo_enc, pkgs_files)
   meta_path <- ifelse(
-    type == "cran",
+    type == "cran" | name == "rspm",
     file.path(root, "_metadata", repo_enc, pkgs_dirs, "METADATA2.gz"),
     NA_character_)
   meta_etag <- ifelse(
@@ -741,10 +746,11 @@ cmc__update_replica_rds <- function(self, private, alert) {
   data_list <- lapply_rows(
     rep_files$pkgs,
     function(r) {
+      rversion <- if (r$platform == "source") "*" else private$r_version
       tryCatch(
         read_packages_file(r$path, mirror = r$mirror,
                            repodir = r$basedir, platform = r$platform,
-                           rversion = private$r_version, type = r$type,
+                           rversion = rversion, type = r$type,
                            meta_path = r$meta_path),
         error = function(x) {
           message()
