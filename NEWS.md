@@ -1,4 +1,30 @@
 
+# pkgcache 2.0.0
+
+## BREAKING CHANGE
+
+* Starting from version 2.0.0 pkgcache returns data frames instead
+  of tibbles. While data frames and tibbles are very similar, they are
+  not completely compatible. To convert the output of pkgcache to tibbles
+  call the `as_tibble()` function on them.
+
+  pkgcache loads the pillar package at startup, if available, and uses it
+  to improve the printing of pkgcache data frames.
+
+## OTHER CHANGES
+
+* `parse_packages()` now automatically determines the type of the `PACKAGES*`
+  file, instead of relying on file extensions.
+
+* pkgcache can now call back again to a `PACKAGES` file if `PACKAGES.gz` is
+  not available. (This fixes a regression in pkgcache 1.3.0.)
+
+* pkgcache now uses HTTP 1.1 on Linux as well, because of crashes with
+  HTTP/2.
+
+* pkgcache now supports `file:///`, repositories, i.e. repositories on
+  the local file system.
+
 # pkgcache 1.3.0
 
 * pkgcache now works better on M1 macs.
@@ -20,7 +46,7 @@
 * `meta_cache_list()` and related functions now correctly set the
   `rversion` column of source R packages to `"*"`.
 
-* pkgcache now users HTTP 1.1 on macOS, to work around a possible
+* pkgcache now uses HTTP 1.1 on macOS, to work around a possible
   slowdown issue with libcurl for HTTP/2.
 
 * pkgcache now uses our extra metadata (file sizes, system requirements,

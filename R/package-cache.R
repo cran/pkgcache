@@ -59,15 +59,15 @@
 #' a platform dependent user level cache directory.) If the cache does
 #' not exists, it creates it.
 #'
-#' `pc$list()` lists all files in the cache, returns a tibble with all the
+#' `pc$list()` lists all files in the cache, returns a data frame with all the
 #' default columns, and potentially extra columns as well.
 #'
 #' `pc$find()` list all files that match the specified criteria (`fullpath`,
 #' `path`, `package`, etc.). Custom columns can be searched for as well.
 #'
 #' `pc$copy_to()` will copy the first matching file from the cache to
-#' `target`. It returns the tibble of _all_ matching records, invisibly.
-#' If no file matches, it returns an empty (zero-row) tibble.
+#' `target`. It returns the data frame of _all_ matching records, invisibly.
+#' If no file matches, it returns an empty (zero-row) data frame.
 #'
 #' `pc$add()` adds a file to the cache.
 #'
@@ -191,7 +191,7 @@ package_cache <- R6Class(
       on_progress; http_headers
       etag <- tempfile()
       async_constant()$
-        then(~ self$copy_to(target, url = urls[1], ..., .list = .list))$
+        then(function() self$copy_to(target, url = urls[1], ..., .list = .list))$
         then(function(res) {
           if (! nrow(res)) {
             download_one_of(urls, target, on_progress = on_progress,
@@ -227,7 +227,7 @@ package_cache <- R6Class(
       self; private; target; urls; path; sha256; list(...); .list;
       on_progress; http_headers
       async_constant()$
-        then(~ self$copy_to(target, url = urls[1], path = path, ...,
+        then(function() self$copy_to(target, url = urls[1], path = path, ...,
                             .list = .list))$
         then(function(res) {
           if (! nrow(res)) {

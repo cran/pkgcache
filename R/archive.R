@@ -1,4 +1,3 @@
-
 #' Cache for CRAN archive data
 #'
 #' This is an R6 class that implements a cache from older CRAN package
@@ -129,7 +128,7 @@ cran_archive_cache <- R6Class(
 
   private = list(
     get_hash = function() {
-      digest(list(private$cran_mirror, private$cache_version))
+      cli::hash_obj_md5(list(private$cran_mirror, private$cache_version))
     },
     get_cache_file = function(which = c("primary", "replica"))
       cac__get_cache_file(self, private, match.arg(which)),
@@ -196,8 +195,8 @@ cac_async_update <- function(self, private) {
   }
 
   private$update_deferred <- private$update_replica()$
-    then(~ private$update_primary())$
-    then(~ private$data)$
+    then(function() private$update_primary())$
+    then(function() private$data)$
     catch(error = function(err) {
       err$message <- msg_wrap(
         conditionMessage(err), "\n\n",
@@ -387,7 +386,7 @@ cac__convert_archive_file <- function(self, private, raw, out) {
   vers <- sub("[.]tar[.]gz$", "", sub("^.*_", "", raw))
   mtime <- unlist(lapply(archive, function(x) x$mtime), use.names = FALSE)
   class(mtime) <- class(archive[[1]]$mtime)
-  res <- tibble(
+  res <- data_frame(
     package = rep(names(archive), lens),
     version = vers,
     raw = raw,
@@ -428,7 +427,7 @@ cac__update_primary <- function(self, private, lock) {
 }
 
 get_archive_cache <- function(cran_mirror) {
-  hash <- digest::digest(cran_mirror)
+  hash <- cli::hash_obj_md5(cran_mirror)
   if (is.null(pkgenv$archive_cache[[hash]])) {
     pkgenv$archive_cache[[hash]] <-
       cran_archive_cache$new(cran_mirror = cran_mirror)
@@ -452,7 +451,7 @@ get_archive_cache <- function(cran_mirror) {
 #'   it gets older than this. Set it to `Inf` to avoid updates. Defaults
 #'   to seven days.
 #' @param packages Character vector. Only report these packages.
-#' @return `cran_archive_list()` returns a tibble with columns:
+#' @return `cran_archive_list()` returns a data frame with columns:
 #'   * `package`: package name,
 #'   * `version`: package version. This is a character vector, and not
 #'      a [package_version()] object. Some older package versions are not
@@ -482,7 +481,7 @@ cran_archive_list <- function(cran_mirror = default_cran_mirror(),
 #' @export
 #' @rdname cran_archive_list
 #' @details `cran_archive_update()` updates the archive cache.
-#' @return `cran_archive_update()` returns all archive data in a tibble,
+#' @return `cran_archive_update()` returns all archive data in a data frame,
 #' in the same format as `cran_archive_list()`, invisibly.
 
 cran_archive_update <- function(cran_mirror = default_cran_mirror()) {

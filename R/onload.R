@@ -339,6 +339,9 @@ pkgenv$rspm_versions <- c(
 pkgenv$package_versions <- new.env(parent = emptyenv())
 
 onload_pkgcache <- function(libname, pkgname) {
+  if (Sys.getenv("PKGCACHE_NO_PILLAR") == "") {
+    requireNamespace("pillar", quietly = TRUE)
+  }
   pkgenv$global_metadata_cache <- new.env(parent = emptyenv())
   pkgenv$archive_cache <- new.env(parent = emptyenv())
 }
@@ -367,7 +370,7 @@ if (exists(".onLoad", inherits = FALSE)) {
 
 get_cranlike_metadata_cache <- function() {
   repos <- repo_get()
-  hash <- digest::digest(repos$url)
+  hash <- cli::hash_obj_md5(repos$url)
   if (is.null(pkgenv$global_metadata_cache[[hash]])) {
     pkgenv$global_metadata_cache[[hash]] <- cranlike_metadata_cache$new()
   }

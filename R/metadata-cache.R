@@ -77,25 +77,25 @@ cmc__data <- new.env(parent = emptyenv())
 #' can refer to the common cache object.
 #'
 #' `cmc$list()` lists all (or the specified) packages in the cache.
-#' It returns a tibble, see the list of columns below.
+#' It returns a data frame, see the list of columns below.
 #'
 #' `cmc$async_list()` is similar, but it is asynchronous, it returns a
 #' `deferred` object.
 #'
-#' `cmc$deps()` returns a tibble, with the (potentially recursive)
+#' `cmc$deps()` returns a data frame, with the (potentially recursive)
 #' dependencies of `packages`.
 #'
 #' `cmc$async_deps()` is the same, but it is asynchronous, it
 #' returns a `deferred` object.
 #'
-#' `cmc$revdeps()` returns a tibble, with the (potentially recursive)
+#' `cmc$revdeps()` returns a data frame, with the (potentially recursive)
 #' reverse dependencies of `packages`.
 #'
 #' `cmc$async_revdeps()` does the same, asynchronously, it returns an
 #' `deferred` object.
 #'
 #' `cmc$update()` updates the the metadata (as needed) in the cache,
-#' and then returns a tibble with all packages, invisibly.
+#' and then returns a data frame with all packages, invisibly.
 #'
 #' `cmc$async_update()` is similar, but it is asynchronous.
 #'
@@ -111,7 +111,7 @@ cmc__data <- new.env(parent = emptyenv())
 #' memory.
 #'
 #' @section Columns:
-#' The metadata tibble contains all available versions (i.e. sources and
+#' The metadata data frame contains all available versions (i.e. sources and
 #' binaries) for all packages. It usually has the following columns,
 #' some might be missing on some platforms.
 #' * `package`: Package name.
@@ -140,7 +140,7 @@ cmc__data <- new.env(parent = emptyenv())
 #'   archived since the metadata was cached.
 #' * `filesize`: Size of the file, if known, in bytes, or `NA_integer_`.
 #' * `sha256`: The SHA256 hash of the file, if known, or `NA_character_`.
-#' * `deps`: All package dependencies, in a tibble.
+#' * `deps`: All package dependencies, in a data frame.
 #' * `license`: Package license, might be `NA` for binary packages.
 #' * `linkingto`: `LinkingTo` field from `DESCRIPTION`, or `NA_character_`.
 #' * `enhances`: `Enhances` field from `DESCRIPTION`, or `NA_character_`.
@@ -154,7 +154,7 @@ cmc__data <- new.env(parent = emptyenv())
 #' * `published`: The time the package was published at, in GMT,
 #'   `POSIXct` class.
 #'
-#' The tibble contains some extra columns as well, these are for internal
+#' The data frame contains some extra columns as well, these are for internal
 #' use only.
 #'
 #' @export
@@ -245,7 +245,7 @@ cranlike_metadata_cache <- R6Class(
     ## We use this to make sure that different versions of pkgcache can
     ## share the same metadata cache directory. It is used to calculate
     ## the hash of the cached RDS file.
-    cache_version = "3",
+    cache_version = "4",
 
     data = NULL,
     data_time = NULL,
@@ -293,7 +293,7 @@ cmc_async_deps <- function(self, private, packages, dependencies,
 
   "!!DEBUG Getting deps"
   private$async_ensure_cache()$
-    then(~ extract_deps(., packages, dependencies, recursive))
+    then(function(.) extract_deps(., packages, dependencies, recursive))
 }
 
 cmc_async_revdeps <- function(self, private, packages, dependencies,
@@ -305,7 +305,7 @@ cmc_async_revdeps <- function(self, private, packages, dependencies,
 
   "!!DEBUG Getting revdeps"
   private$async_ensure_cache()$
-    then(~ extract_revdeps(., packages, dependencies, recursive))
+    then(function(.) extract_revdeps(., packages, dependencies, recursive))
 }
 
 cmc_async_list <- function(self, private, packages) {
@@ -323,9 +323,9 @@ cmc_async_update <- function(self, private) {
   if (!is.null(private$update_deferred)) return(private$update_deferred)
 
   private$update_deferred <- async(private$update_replica_pkgs)()$
-    then(~ private$update_replica_rds())$
-    then(~ private$update_primary())$
-    then(~ private$data)$
+    then(function() private$update_replica_rds())$
+    then(function() private$update_primary())$
+    then(function() private$data)$
     catch(error = function(err) {
       err$message <- msg_wrap(
         conditionMessage(err), "\n\n",
@@ -405,13 +405,13 @@ cmc_cleanup <- function(self, private, force) {
   unlink(cache_dir, recursive = TRUE, force = TRUE)
 }
 
-#' @importFrom digest digest
+#' @importFrom cli hash_obj_md5
 #' @importFrom utils URLencode
 
 repo_encode <- function(repos) {
   paste0(
     vcapply(repos$name, URLencode, reserved = TRUE), "-",
-    substr(vcapply(repos$url, digest), 1, 10)
+    substr(vcapply(repos$url, "hash_obj_md5"), 1, 10)
   )
 }
 
@@ -424,8 +424,8 @@ cran_metadata_url <- function() {
 cmc__get_cache_files <- function(self, private, which) {
   root <- private[[paste0(which, "_path")]]
 
-  repo_hash <- digest(list(repos = private$repos, dirs = private$dirs,
-                           version = private$cache_version))
+  repo_hash <- hash_obj_md5(list(repos = private$repos, dirs = private$dirs,
+                                 version = private$cache_version))
 
   str_platforms <- paste(private$platforms, collapse = "+")
   rds_file <- paste0("pkgs-", substr(repo_hash, 1, 10), ".rds")
@@ -457,7 +457,7 @@ cmc__get_cache_files <- function(self, private, which) {
     meta = file.path(root, "_metadata"),
     lock = file.path(root, "_metadata.lock"),
     rds  = file.path(root, "_metadata", rds_file),
-    pkgs = tibble::tibble(
+    pkgs = data_frame(
       path = pkg_path,
       etag = file.path(root, "_metadata", repo_enc, paste0(pkgs_files, ".etag")),
       basedir = pkgs_dirs,
@@ -905,7 +905,7 @@ cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
   repos[["CRAN"]] <- cran_mirror
   repos <- unlist(repos)
   bioc_names <- bioconductor$get_repos()
-  res <- tibble(
+  res <- data_frame(
     name = names(repos),
     url = unname(repos),
     type = ifelse(
@@ -922,7 +922,7 @@ cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
       bioc_version <- as.character(bioconductor$get_bioc_version(rver))
       bioc_repos <- bioconductor$get_repos(bioc_version)
 
-      bioc_res <- tibble(
+      bioc_res <- data_frame(
         name = names(bioc_repos),
         url = unname(bioc_repos),
         type = "bioc",
@@ -962,7 +962,7 @@ cmc__get_repos <- function(repos, bioc, cran_mirror, r_version) {
 #'   parameter of [utils::install.packages()].
 #' @param recursive Whether to query recursive dependencies.
 #' @param force Whether to force cleanup without asking the user.
-#' @return A data frame (tibble) of the dependencies. For
+#' @return A data frame of the dependencies. For
 #'   `meta_cache_deps()` and `meta_cache_revdeps()` it includes the
 #'   queried `packages` as well.
 #'
