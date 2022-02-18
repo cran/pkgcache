@@ -1,7 +1,7 @@
-b35f9b7be4f51f549a11dea447afac76 *DESCRIPTION
+fd2ff50492d80019a5cb50034c2a2adb *DESCRIPTION
 db8df6852a9a4942bd575b66a884b35e *LICENSE
 dcab712157389a8ed58ad40ff96e044f *NAMESPACE
-b530e836aa8ad4a5b3a7c3e0618457e0 *NEWS.md
+4eea7eaa769a7e366f217ad5286118ed *NEWS.md
 a5c41da68d1c16d385fd6278a53629ba *R/aa-assertthat.R
 2d920acc82ddc9ad40d3e54db5740d0f *R/aaa-async.R
 ac7c7e03b6eb040de52ae2dcffe50b97 *R/archive.R
@@ -111,8 +111,8 @@ b1904b9bf9bbf9ae1a9a736bdab6af90 *tests/async/test-when-all.R
 79e794cc564de5fdf53c0a2c9a731cb1 *tests/async/test-when-some.R
 939e79b22a5de0f5933375e56ada173f *tests/async/test-whilst.R
 f67e1373826326f0227f16527891fdcb *tests/async/test-worker-pool.R
-0bf5c9ff8066fd34c088b6904c385be6 *tests/test-async.R
-49e5d9efd947b153774344f1dea72f2f *tests/testthat.R
+06936347d4b56eb0391d08074585d48f *tests/test-async.R
+120d82848ade523b4c786e78fc4332a0 *tests/testthat.R
 bb85f9c6856d533b6970caf57078524a *tests/testthat/_snaps/installed.md
 6789a93e107f7382f51f698c0974bff7 *tests/testthat/_snaps/packages-gz.md
 4ed85db30322ba16433fd47260aebc12 *tests/testthat/_snaps/platform.md

@@ -1,6 +1,6 @@
 Package: pkgcache
 Title: Cache 'CRAN'-Like Metadata and R Packages
-Version: 2.0.0
+Version: 2.0.1
 Authors@R: 
     person(given = "Gábor",
            family = "Csárdi",
@@ -21,8 +21,8 @@ Suggests: covr, debugme, desc, fs, mockery, pillar, pingr, rprojroot,
 Depends: R (>= 3.1)
 RoxygenNote: 7.1.2
 NeedsCompilation: yes
-Packaged: 2022-02-16 14:31:53 UTC; gaborcsardi
+Packaged: 2022-02-18 14:54:35 UTC; gaborcsardi
 Author: Gábor Csárdi [aut, cre]
 Maintainer: Gábor Csárdi <csardi.gabor@gmail.com>
 Repository: CRAN
-Date/Publication: 2022-02-16 15:20:05 UTC
+Date/Publication: 2022-02-18 23:50:02 UTC
