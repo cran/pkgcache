@@ -1,6 +1,4 @@
 
-context("metadata cache 1/3")
-
 test_that("get_cache_files", {
   dir.create(pri <- fs::path_norm(tempfile()))
   on.exit(unlink(pri, recursive = TRUE), add = TRUE)
@@ -76,7 +74,7 @@ test_that("load_replica_rds", {
 
   rep_files <- get_private(cmc)$get_cache_files("replica")
   mkdirp(dirname(rep_files$rds))
-  saveRDS("This is it", rep_files$rds)
+  save_rds("This is it", rep_files$rds)
   file_set_time(rep_files$rds, Sys.time() - 2 * oneday())
   expect_error(
     get_private(cmc)$load_replica_rds(oneday()),
@@ -106,7 +104,7 @@ test_that("load_primary_rds", {
 
   pri_files <- get_private(cmc)$get_cache_files("primary")
   mkdirp(dirname(pri_files$rds))
-  saveRDS("This is it", pri_files$rds)
+  save_rds("This is it", pri_files$rds)
   file_set_time(pri_files$rds, Sys.time() - 2 * oneday())
   expect_error(
     get_private(cmc)$load_primary_rds(oneday()),
@@ -177,6 +175,8 @@ test_that("load_primary_pkgs", {
   pri_files <- get_private(cmc)$get_cache_files("primary")
   mkdirp(dirname(pri_files$pkgs$path))
   fs::file_copy(get_fixture("PACKAGES-mac.gz"), pri_files$pkgs$path[1])
+  # if this fails, then we need to add a new R version to the list or
+  # CRAN macOS platforms in platform.R
   expect_error(
     synchronise(get_private(cmc)$load_primary_pkgs(oneday())),
     "Some primary PACKAGES files don't exist")
@@ -260,7 +260,7 @@ test_that("update_primary", {
   rep_files <- get_private(cmc)$get_cache_files("replica")
 
   mkdirp(dirname(rep_files$rds))
-  saveRDS("RDS", rep_files$rds)
+  save_rds("RDS", rep_files$rds)
   get_private(cmc)$update_primary(rds = TRUE, packages = FALSE)
   expect_true(file.exists(pri_files$rds))
   expect_equal(readRDS(pri_files$rds), "RDS")
