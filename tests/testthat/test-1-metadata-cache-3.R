@@ -1,7 +1,6 @@
 
 test_that("concurrency in update", {
-  skip_if_offline()
-  skip_on_cran()
+  setup_fake_apps()
 
   dir.create(pri <- fs::path_norm(tempfile()))
   on.exit(unlink(pri, recursive = TRUE), add = TRUE)
@@ -18,7 +17,7 @@ test_that("concurrency in update", {
     when_all(dx1, dx2, dx3)
   }
 
-  res <- synchronise(do())
+  res <- suppressMessages(synchronise(do()))
   check_packages_data(res[[1]])
   check_packages_data(res[[2]])
   check_packages_data(res[[3]])
@@ -80,14 +79,12 @@ test_that("cleanup", {
 })
 
 test_that("memory cache", {
-
-  skip_if_offline()
-  skip_on_cran()
+  setup_fake_apps()
 
   pri <- test_temp_dir()
   rep <- test_temp_dir()
   cmc <- cranlike_metadata_cache$new(pri, rep, "source", bioc = FALSE)
-  data <- cmc$list()
+  data <- suppressMessages(cmc$list())
 
   rep2 <- test_temp_dir()
   cmc2 <- cranlike_metadata_cache$new(pri, rep2, "source", bioc = FALSE)
@@ -127,4 +124,48 @@ test_that("summary", {
     c("cachepath", "lockfile", "current_rds", "raw_files", "rds_files",
       "size")
   )
+})
+
+test_that("corrupt metadata", {
+  # The nullfile() trick does not work on Windows, we need a different
+  # way to corrupt the files there
+  skip_on_os("windows")
+  setup_fake_apps()
+
+  pri <- nullfile()
+  dir.create(rep <- fs::path_norm(tempfile()))
+  on.exit(unlink(rep, recursive = TRUE), add = TRUE)
+
+  cmc <- cranlike_metadata_cache$new(pri, rep, "source", bioc = FALSE)
+
+  expect_snapshot(error = TRUE, suppressMessages(cmc$list()))
+})
+
+test_that("missing packages note", {
+
+  fake_cran2 <- webfakes::local_app_process(
+    cran_app(cran_app_pkgs),
+    opts = webfakes::server_opts(num_threads = 3)
+  )
+
+  withr::local_options(
+    repos = c(CRAN = fake_cran$url(), FOO = fake_cran2$url())
+  )
+
+  dir.create(pri <- fs::path_norm(tempfile()))
+  on.exit(unlink(pri, recursive = TRUE), add = TRUE)
+  dir.create(rep <- fs::path_norm(tempfile()))
+  on.exit(unlink(rep, recursive = TRUE), add = TRUE)
+
+  cmc <- cranlike_metadata_cache$new(pri, rep, c("source", "windows"), bioc = FALSE)
+  msg <- ""
+  withCallingHandlers(
+    invisible(cmc$update()),
+    message = function(m) {
+      msg <<- paste0(msg, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+
+  expect_match(msg, "packages are missing from CRAN and 127.0.0.1:", fixed = TRUE)
 })

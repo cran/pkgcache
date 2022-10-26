@@ -1,3 +1,20 @@
+# pkgcache 2.0.3
+
+* The `built` and `sysreqs` columns of the metadata case are always
+  character vectors now, and not logicals, as it used to be in some
+  edges cases in the past.
+
+* The `deps` column of the metadata cache is not a tibble any more,
+  but a data frame with a `tbl` class, as it should be.
+
+* `cran_archive_*()` functions now only download the metadata if it is newer
+  than what you have currently.
+  
+* `cran_archive_cleanup()` now does not ignore the `force` argument.
+
+* The `sources` column in the metadata cache now has the correct URL for
+  packages in the CRAN archive (https://github.com/r-lib/pak/issues/425).
+
 # pkgcache 2.0.2
 
 * pkgcache error messages are better now.

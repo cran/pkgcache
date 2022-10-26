@@ -245,7 +245,7 @@ cranlike_metadata_cache <- R6Class(
     ## We use this to make sure that different versions of pkgcache can
     ## share the same metadata cache directory. It is used to calculate
     ## the hash of the cached RDS file.
-    cache_version = "4",
+    cache_version = "6",
 
     data = NULL,
     data_time = NULL,
@@ -391,8 +391,10 @@ cmc_cleanup <- function(self, private, force) {
   }
   cache_dir <- private$get_cache_files("primary")$meta
   if (!force) {
-    msg <- glue::glue(
-      "Are you sure you want to clean up the cache in `{cache_dir}` (y/N)? ")
+    msg <- sprintf(
+      "Are you sure you want to clean up the cache in `%s` (y/N)? ",
+      cache_dir
+    )
     ans <- readline(msg)
     if (! ans %in% c("y", "Y")) stop("Aborted")
   }
@@ -416,9 +418,11 @@ repo_encode <- function(repos) {
 }
 
 cran_metadata_url <- function() {
-  Sys.getenv(
-    "R_PKG_CRAN_METADATA_URL",
-    "https://cran.r-pkg.org/metadata/")
+  getOption("pkg.cran_metadata_url",
+     Sys.getenv(
+       "R_PKG_CRAN_METADATA_URL",
+       "https://cran.r-pkg.org/metadata/")
+     )
 }
 
 cmc__get_cache_files <- function(self, private, which) {

@@ -1,25 +1,4 @@
 
-httpbin <- (function() {
-  url <- NULL
-
-  update <- function(x) {
-    chk_url <- function(url, ...) {
-      http_head(url, ...)$
-        then(http_stop_for_status)$
-        then(function(r) r$url)
-    }
-    synchronise(when_any(
-      chk_url("https://httpbin.org"),
-      chk_url("https://eu.httpbin.org")
-    ))
-  }
-
-  function(endpoint = "") {
-    if (is.null(url)) url <<- update()
-    paste0(url, endpoint)
-  }
-})()
-
 check_packages_data <- function(pkgs) {
   cols <- packages_gz_cols()
   p_cols <- cols$pkgs
@@ -75,4 +54,16 @@ test_temp_dir <- function(pattern = "test-dir-", envir = parent.frame()) {
 touch <- function(path) {
   mkdirp(dirname(path))
   cat("", file = path)
+}
+
+fix_port_number <- function(x) {
+  gsub(":[0-9]+", ":3000", x)
+}
+
+fix_mtime <- function(x) {
+  gsub(
+    "\\d\\d\\d\\d[-]\\d\\d[-]\\d\\d \\d\\d:\\d\\d:\\d\\d",
+    "2022-09-14 13:28:34",
+    x
+  )
 }
