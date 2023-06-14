@@ -15,8 +15,8 @@
 #'
 #' On Linux, instead of setting these environment variables, you can also
 #' add a PPM repository to the `repos` option, see [base::options()].
-#' In the environment variables are not set, then `ppm_repo_url()` will
-#' try extract the PPM base URL and repository name from this option.
+#' If the environment variables are not set, then `ppm_repo_url()` will
+#' try to extract the PPM base URL and repository name from this option.
 #'
 #' If the `PKGCACHE_PPM_URL` environment variable is not set, and the
 #' `repos` option does not contain a PPM URL (on Linux), then pkgcache
@@ -265,14 +265,14 @@ ppm_has_binaries <- function() {
 
   if (!binaries) return(FALSE)
 
+  current_rver <- get_minor_r_version(getRversion())
   synchronise(async_get_ppm_status(
     distribution = current$distribution,
-    release = current$release
+    release = current$release,
+    r_version = current_rver
   ))
   distros <- pkgenv$ppm_distros
   rver <- pkgenv$ppm_r_versions
-
-  current_rver <- get_minor_r_version(getRversion())
 
   if (current$os == "mingw32") {
     binaries <- binaries &&

@@ -132,7 +132,9 @@ pkgenv$r_versions <- list(
   list(version = "4.1.3",  date = "2022-03-10T08:05:38.083503Z"),
   list(version = "4.2.0",  date = "2022-04-22T07:05:41.508134Z"),
   list(version = "4.2.1",  date = "2022-06-23T07:05:33.441356Z"),
-  list(version = "4.2.2",  date = "2022-10-31T08:05:54.268400Z")
+  list(version = "4.2.2",  date = "2022-10-31T08:05:54.268400Z"),
+  list(version = "4.2.3",  date = "2023-03-15T08:06:01.008593Z"),
+  list(version = "4.3.0",  date = "2023-04-21T07:06:14.217164Z")
 )
 
 pkgenv$ppm_versions <- c(
@@ -602,7 +604,7 @@ pkgenv$ppm_distros_cached <-
  macOS                   macOS   \"\"          macOS        all       FALSE
 "))
 
-pkgenv$ppm_r_versions_cached <- c("3.5", "3.6", "4.0", "4.1", "4.2")
+pkgenv$ppm_r_versions_cached <- c("3.6", "4.0", "4.1", "4.2", "4.3")
 
 pkgenv$package_versions <- new.env(parent = emptyenv())
 

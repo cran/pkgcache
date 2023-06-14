@@ -1,3 +1,14 @@
+# pkgcache 2.1.1
+
+* `parse_installed()` now has a `packages` argument, to list only a subset
+  of all packages.
+
+* `parse_packages()` can now parse `PACKAGES` files with trailing
+  whitespace (#93).
+
+* The Bioconductor repositories now include the 'books' repository,
+  available since Bioconductor 3.12.
+
 # pkgcache 2.1.0
 
 * pkgcache now supports binary packages on x86_64 macOS and R 4.3.0 and
