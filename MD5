@@ -1,4 +1,4 @@
-f372e7db25f9da1ca71373f89e589204 *DESCRIPTION
+8e23a133b7a45afe039cd9f499cc146d *DESCRIPTION
 db8df6852a9a4942bd575b66a884b35e *LICENSE
 bd59d942962f18eae09968b5c8114039 *NAMESPACE
 f44fbe5b5d8e2cdd532f5dfeda44ecda *NEWS.md
@@ -9,7 +9,7 @@ ada072731e557eabd66cfb99e7d6f4ed *R/archive.R
 8a0cad2fed0f14b7f270862e742ffe69 *R/assertions.R
 79831e85e2f25b2fd23420814e10ce4d *R/async-http.R
 24662e97778572e7f90e2ca66aad7dec *R/bioc-sysreqs.R
-d8efdf7c626c1cb930428d9aefc92ba3 *R/bioc.R
+1abdc8d46120fd8dbda3155268a67664 *R/bioc.R
 d34deb50b020776c6badb28c79a5a349 *R/cache-api.R
 5662d61f150d167b4e26c3da8b5bb4d2 *R/cache-dirs.R
 773e4db09280c1e2b0463de9764546f6 *R/compat-vctrs.R
