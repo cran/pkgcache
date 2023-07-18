@@ -120,6 +120,24 @@ read_packages_file <- function(path, mirror, repodir, platform,
         rep(NA_character_, nrow(pkgs))
   }
 
+  # We add some Bioconductor system requirements manually
+  if (type == "bioc") {
+    mch <- match(pkgenv$bioc_sysreqs$Package, pkgs$package)
+    curval <- pkgs$sysreqs[mch]
+    toadd <- is.na(curval) & !is.na(mch)
+    pkgs$sysreqs[mch[toadd]] <- pkgenv$bioc_sysreqs$SystemRequirements[toadd]
+  }
+
+  # If it was explicitly in the metadata, keep it
+  if ("systemrequirements" %in% names(pkgs)) {
+    pkgs$sysreqs <- ifelse(
+      !is.na(pkgs$systemrequirements),
+      pkgs$systemrequirements,
+      pkgs$sysreqs
+    )
+    pkgs$systemrequirements <- NULL
+  }
+
   # PPM sources are really binaries for the current platform
   hasbin <- pkgs$package %in% bin$Package
   if (length(orig_r_version) == 1 && sum(hasbin) > 0) {

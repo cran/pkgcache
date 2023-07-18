@@ -148,9 +148,10 @@ cmc__data <- new.env(parent = emptyenv())
 #' * `priority`: "optional", "recommended" or `NA`. (Base packages are
 #'   normally not included in the list, so "base" should not appear here.)
 #' * `md5sum`: MD5 sum, if available, may be `NA`.
-#' * `sysreqs`: For CRAN packages, the `SystemRequirements` field, the
-#'   required system libraries or other software for the package. For
-#'   non-CRAN packages it is `NA`.
+#' * `sysreqs`: The `SystemRequirements` field, if available. This lists the
+#'   required system libraries or other software for the package. This is
+#'   usually available for CRAN and Bioconductor package and when it is
+#'   explicitly available in the repository metadata.
 #' * `published`: The time the package was published at, in GMT,
 #'   `POSIXct` class.
 #'
@@ -734,21 +735,26 @@ cmc__update_replica_pkgs <- function(self, private) {
   rep_files <- private$get_cache_files("replica")
   pkgs <- rep_files$pkgs
 
+  bsq_url <- "https://github.com/r-lib/pkgcache/raw/HEAD/inst/bioc-sysreqs.dcf.gz"
+  bsq_path <- bioc_sysreqs_cached()
+  bsq_etag <- paste0(bsq_path, ".etag")
+
   meta <- !is.na(pkgs$meta_url)
   bin <- !is.na(pkgs$bin_url)
   dls <- data.frame(
     stringsAsFactors = FALSE,
-    url = c(pkgs$url, pkgs$meta_url[meta], pkgs$bin_url[bin]),
-    fallback_url = c(pkgs$fallback_url, rep(NA_character_, sum(meta) + sum(bin))),
-    path = c(pkgs$path, pkgs$meta_path[meta], pkgs$bin_path[bin]),
-    etag = c(pkgs$etag, pkgs$meta_etag[meta], pkgs$bin_etag[bin]),
-    timeout = rep(c(200, 100), c(nrow(pkgs), sum(meta) + sum(bin))),
+    url = c(pkgs$url, pkgs$meta_url[meta], pkgs$bin_url[bin], bsq_url),
+    fallback_url = c(pkgs$fallback_url, rep(NA_character_, sum(meta) + sum(bin)), NA_character_),
+    path = c(pkgs$path, pkgs$meta_path[meta], pkgs$bin_path[bin], bsq_path),
+    etag = c(pkgs$etag, pkgs$meta_etag[meta], pkgs$bin_etag[bin], bsq_etag),
+    timeout = c(rep(c(200, 100), c(nrow(pkgs), sum(meta) + sum(bin))), 5),
     mayfail = TRUE
   )
 
   download_files(dls)$
     then(function(result) {
       missing_pkgs_note(pkgs, result)
+      load_bioc_sysreqs()
       result
     })
 }

@@ -218,3 +218,50 @@ test_that("bioc_repos", {
     bioc_repos("3.13")
   )
 })
+
+test_that("valid_platform_string", {
+  expect_true(valid_platform_string("a-b-c"))
+  expect_true(valid_platform_string("a-b-c-"))
+  expect_true(valid_platform_string("a-b-c-d"))
+  expect_true(valid_platform_string("foo-bar-cup"))
+  expect_true(valid_platform_string("foo-bar-cup-boo"))
+
+  expect_false(valid_platform_string("-a-b-c"))
+  expect_false(valid_platform_string("a---c"))
+  expect_false(valid_platform_string("foo-bar"))
+  expect_false(valid_platform_string("foobar"))
+})
+
+test_that("option, env var", {
+  withr::local_options(pkg.current_platform = "foo-bar-foobar")
+  expect_equal(current_r_platform(), "foo-bar-foobar")
+
+  withr::local_options(pkg.current_platform = 1:10)
+  expect_snapshot(
+    error = TRUE,
+    current_r_platform()
+  )
+  withr::local_options(pkg.current_platform = "foobar")
+  expect_snapshot(
+    error = TRUE,
+    current_r_platform()
+  )
+
+  withr::local_options(pkg.current_platform = NULL)
+  withr::local_envvar(PKG_CURRENT_PLATFORM = "foobar-foo-bar")
+  expect_equal(current_r_platform(), "foobar-foo-bar")
+
+  withr::local_envvar(PKG_CURRENT_PLATFORM = "foobar")
+  expect_snapshot(
+    error = TRUE,
+    current_r_platform()
+  )
+})
+
+test_that("platform with flavors", {
+  withr::local_options(
+    pkg.current_platform = "x86_64-pc-linux-gnu-ubuntu-22.04-libc++"
+  )
+  expect_snapshot(current_r_platform_data())
+  expect_snapshot(current_r_platform())
+})
