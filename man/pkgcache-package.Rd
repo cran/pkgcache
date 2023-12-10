@@ -19,6 +19,12 @@ You can install the released version of pkgcache from
 
 \if{html}{\out{<div class="sourceCode r">}}\preformatted{install.packages("pkgcache")
 }\if{html}{\out{</div>}}
+
+If you need the development version, you can install it from
+\href{https://github.com}{GitHub} with:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{pak::pak("r-lib/pkgcache")
+}\if{html}{\out{</div>}}
 }
 
 \subsection{Metadata cache}{
@@ -223,8 +229,8 @@ curl options. The \code{pkgcache_low_speed_time} and
 \code{pkgcache_low_speed_limit} options have priority over these
 environment variables, if they are set.
 \item \code{R_PKG_CACHE_DIR} is used for the cache directory, if set. (Otherwise
-\code{rappdirs::user_cache_dir()} is used, see also \code{meta_cache_summary()}
-and \code{pkg_cache_summary()}).
+\code{tools::R_user_dir("pkgcache", "cache")} is used, see also
+\code{meta_cache_summary()} and \code{pkg_cache_summary()}).
 }
 }
 
@@ -256,8 +262,8 @@ MIT (c) \href{https://posit.co}{Posit Software, PBC}
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/r-lib/pkgcache#readme}
   \item \url{https://r-lib.github.io/pkgcache/}
+  \item \url{https://github.com/r-lib/pkgcache}
   \item Report bugs at \url{https://github.com/r-lib/pkgcache/issues}
 }
 
@@ -267,7 +273,7 @@ Useful links:
 
 Other contributors:
 \itemize{
-  \item RStudio [copyright holder, funder]
+  \item Posit Software, PBC [copyright holder, funder]
 }
 
 }

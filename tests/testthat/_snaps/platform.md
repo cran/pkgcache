@@ -330,23 +330,24 @@
       34         3.14       4.1 out-of-date
       35         3.15       4.2 out-of-date
       36         3.16       4.2 out-of-date
-      37         3.17       4.3     release
-      38         3.18       4.3       devel
-      39         3.18       4.4      future
+      37         3.17       4.3 out-of-date
+      38         3.18       4.3     release
+      39         3.19       4.4       devel
+      40         3.19       4.5      future
 
 # bioc_release_version, bioc_devel_version
 
     Code
       bioc_release_version(forget = TRUE)
     Output
-      [1] '3.17'
+      [1] '3.18'
 
 ---
 
     Code
       bioc_devel_version(forget = TRUE)
     Output
-      [1] '3.18'
+      [1] '3.19'
 
 # bioc_repos
 
@@ -368,22 +369,25 @@
 
     Code
       current_r_platform()
-    Error <simpleError>
-      The `pkg.current_platform` option must be a string scalar.
+    Condition
+      Error in `forced_platform()`:
+      ! The `pkg.current_platform` option must be a string scalar.
 
 ---
 
     Code
       current_r_platform()
-    Error <simpleError>
-      The pkg.current_platform` option must be a valid platform triple: `cpu-vendor-os`. "foobar" is not.
+    Condition
+      Error in `forced_platform()`:
+      ! The pkg.current_platform` option must be a valid platform triple: `cpu-vendor-os`. "foobar" is not.
 
 ---
 
     Code
       current_r_platform()
-    Error <simpleError>
-      The `PKG_CURRENT_PLATFORM` environment variable must be a valid platform triple: "cpu-vendor-os". "foobar" is not.
+    Condition
+      Error in `forced_platform()`:
+      ! The `PKG_CURRENT_PLATFORM` environment variable must be a valid platform triple: "cpu-vendor-os". "foobar" is not.
 
 # platform with flavors
 
