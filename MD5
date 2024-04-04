@@ -1,9 +1,9 @@
-2c3eb9f10f684b1e5f51a69e93958f5f *DESCRIPTION
+26c7b565718d88f8193fd72ea832c255 *DESCRIPTION
 a92dba6dea0844c2a6901a6c61454725 *LICENSE
 7a272a85e879ffbb1d81a8e515a0359a *NAMESPACE
-04c3803f9271b7f629f85bac96c9c80e *NEWS.md
+304cdbe3a5f1f19fd6bf4a1a16c07cd8 *NEWS.md
 d677f4d8a6c8a3a2e8dc9023a4632e84 *R/aa-assertthat.R
-7ce6af3f5a138ed561f081ad8ad7388c *R/aaa-async.R
+a655c3e4aee64cbe47c1f1a5f18e3bb4 *R/aaa-async.R
 c1dbb190ed90e0231c513371c733c9c7 *R/aaa-rstudio-detect.R
 4118a816000edb1c7f320096b8de6d92 *R/archive.R
 8a0cad2fed0f14b7f270862e742ffe69 *R/assertions.R
@@ -28,7 +28,7 @@ cb12d582e2ed48e341750b704512926a *R/packages-gz.R
 f8197644440c7e9b711b39c5d4736104 *R/parse-url.R
 29663f1f678204e89773af449c2bd18c *R/pkgdown.R
 dc7f30cf18ad607a678bc8b50967c5a7 *R/platform-linux.R
-c5cbb1dfd504a567d5ec03b0db786839 *R/platform.R
+e047f841f974410b9f18d0e07d27713a *R/platform.R
 6425548827cbe52e6159e8bee6d99946 *R/ppm.R
 6a6081adb14a4cf7a1141f5cca1ee10e *R/progress-bar.R
 ad7153cabb91a04aa10217e3e8c9b272 *R/rematch.R
@@ -83,6 +83,8 @@ ed41dd0258a55d7070c0120318251997 *src/pkgcache.h
 33f9f75301f0c4b4ef8c4818140931d4 *src/winfiles.c
 bdcb51aada6be4f06b441c6e08a2836c *src/winfiles.h
 87ecac3e2ffc52de499b67c57e7c755d *tests/async/_snaps/backoff.md
+dc16d739a13dffc751eac82e8379057e *tests/async/_snaps/http-sse.md
+64304d38f5ce3ea392dd4a28c4254e67 *tests/async/_snaps/http.md
 69a9851f12798add8133d898a5184db7 *tests/async/helper.R
 1f6c329ed171beb2608269973298337f *tests/async/setup-httpbin.R
 edb773cac44154ae2f89e60a2c81c683 *tests/async/teardown-httpbin.R
@@ -104,14 +106,16 @@ b391f6f1536749ac5e7550def3e6c2b5 *tests/async/test-detect.R
 03773baab1812e7a1879d003b5df01e1 *tests/async/test-each-of.R
 6a7477547f4c622654ccd996d331b1b9 *tests/async/test-each.R
 ca958c3b75475fea543c1ee68c21a128 *tests/async/test-errors.R
-3f5073f2cd1e3859476de6b1240cf13a *tests/async/test-event-emitter-async.R
-abae39f29933c6ecd3cd990d492c7928 *tests/async/test-event-emitter.R
+8ace7ff879bea9e9f6fe86589c7a3543 *tests/async/test-event-emitter-async.R
+b0161e4b62bfc9c342060258d60805b0 *tests/async/test-event-emitter.R
 978d3dabe690098446b3b34e459e6e85 *tests/async/test-event-loop.R
 5084953a1c80b86dfef675a06f9d7515 *tests/async/test-every.R
 c4aeb0fa598232b844467c41e0015849 *tests/async/test-external-process.R
 3b9c8d0162bd28c1ff6aef8b5ad61f5a *tests/async/test-filter.R
+a78b8aea0062ba13c4b5b95290dbfa94 *tests/async/test-http-events.R
 fbe6f1a77c2d6833c0edec77fea01caa *tests/async/test-http-file.R
-5e113c47070c89856b878cfab907637b *tests/async/test-http.R
+d25e2be3d9f9cc8f351600716e4182eb *tests/async/test-http-sse.R
+bf103f63226ec04aeb2503e1fb61e6df *tests/async/test-http.R
 399969e2589b2f7a025ca71a8b9f1bd7 *tests/async/test-parallel.R
 9498643ec1454e35751407f598649c77 *tests/async/test-process.R
 c3641c99ab9102edb587233028901008 *tests/async/test-progress.R
@@ -140,6 +144,7 @@ aad9cbcd21f1f0068125026babf328ff *tests/async/test-worker-pool.R
 c9c1ba824a6d3e6e37ce8b0478d01944 *tests/testthat/_snaps/archive.md
 6583ae72490164cb145c8b5c408b1035 *tests/testthat/_snaps/assert-that.md
 0148b2d5c41e976f701f4bdae1e80705 *tests/testthat/_snaps/installed.md
+2bdb867cb37bda83d732afc2ff6d20c3 *tests/testthat/_snaps/macos-platforms.md
 f2a41ee2356164d77b81d792bfae2b5e *tests/testthat/_snaps/metadata-errors.md
 58c353b712e9331d75e2abc2de363a8d *tests/testthat/_snaps/packages-gz.md
 8ec8c78174be872667f6402308fde769 *tests/testthat/_snaps/platform.md
@@ -288,6 +293,7 @@ b1418ddf5c3f03fe1cf6d864743ac663 *tests/testthat/test-data-frame.R
 c509cfefb1b8a5d66e23fe7cda2df162 *tests/testthat/test-errors.R
 e86f08d6a714fd83b84ae8529631cf9f *tests/testthat/test-installed.R
 93e4986e535a17370751a3786f9430cc *tests/testthat/test-iso-date.R
+5b78a757e7aa5cec71e645af6ca2729d *tests/testthat/test-macos-platforms.R
 09e4250e8090f5f1f275922f42fb2890 *tests/testthat/test-metadata-errors.R
 393cd8d69e162dab1e561b6ced066977 *tests/testthat/test-metadata-utils.R
 b7609b2bf58e2bffe9dae7f94183e5af *tests/testthat/test-packages-gz.R
