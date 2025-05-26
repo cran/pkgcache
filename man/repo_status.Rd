@@ -37,6 +37,13 @@ current Bioconductor repositories are \code{BioCsoft}, \code{BioCann},
 \item \code{url}: base URL of the repository.
 \item \code{bioc_version}: Bioconductor version, or \code{NA} for
 non-Bioconductor repositories.
+\item \code{username}: Included if at least one repository is authenticated.
+\code{NA_character_} for repositories without authentication. See
+\code{\link[=repo_auth]{repo_auth()}}.
+\item \code{has_password}: \code{TRUE} is the function could retrieve the password
+for the authenticated repository. It is \code{NA} for repositories without
+authentication. This column is included only if at least one
+repository has authentication. See \code{\link[=repo_auth]{repo_auth()}}.
 \item \code{platform}: platform, see \code{\link[=default_platforms]{default_platforms()}} for possible values.
 \item \code{path}: the path to the packages within the base URL, for a
 given platform and R version.
@@ -58,7 +65,7 @@ The returned data frame has a \code{summary()} method, which shows
 the same information is a concise table. See examples below.
 }
 \examples{
-\dontshow{if (pkgcache:::run_examples()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (pkgcache:::run_examples()) withAutoprint(\{ # examplesIf}
 repo_status()
 rst <- repo_status(
   platforms = c("windows", "macos"),

@@ -1,4 +1,3 @@
-
 #' Query and set the list of CRAN-like repositories
 #'
 #' pkgcache uses the `repos` option, see [options()]. It also automatically
@@ -30,6 +29,10 @@
 #'   the package metadata.
 #' * `bioc_version`: Bioconductor version. Only set for Bioconductor
 #'   repositories, and it is `NA` for others.
+#' * `username`: user name, for authenticated repositories.
+#' * `has_password`: whether `repo_get()` could find the password for
+#'   this repository. Call [repo_auth()] for more information if the
+#'   credential lookup failed.
 #'
 #' @export
 #' @family repository functions
@@ -37,19 +40,25 @@
 #' @examples
 #' repo_get()
 
-repo_get <- function(r_version = getRversion(), bioc = TRUE,
-                     cran_mirror = default_cran_mirror()) {
+repo_get <- function(
+  r_version = getRversion(),
+  bioc = TRUE,
+  cran_mirror = default_cran_mirror()
+) {
   cmc__get_repos(
     getOption("repos"),
     bioc = bioc,
     cran_mirror = cran_mirror,
-    as.character(r_version)
+    as.character(r_version),
+    auth = TRUE
   )
 }
 
 #' @rdname repo_get
 #' @param spec A single repository specification, a possibly named
 #'   character scalar. See details below.
+#' @param username User name to set, for authenticated repositories, see
+#'   [repo_auth()].
 #' @details
 #'   `repo_resolve()` resolves a single repository specification to a
 #'   repository URL.
@@ -63,14 +72,16 @@ repo_get <- function(r_version = getRversion(), bioc = TRUE,
 #' #' repo_resolve("PPM@dplyr-1.0.0")
 #' #' repo_resolve("PPM@R-4.0.0")
 
-repo_resolve <- function(spec) {
-  repo_sugar(spec, names(spec))
+repo_resolve <- function(spec, username = NULL) {
+  repo_sugar(spec, names(spec), username)
 }
 
 #' @rdname repo_get
 #' @param ...  Repository specifications. See details below.
 #' @param .list List or character vector of repository specifications,
 #'   see details below.
+#' @param username User name to set, for authenticated repositories, see
+#'   [repo_auth()].
 #' @details
 #'   `repo_add()` adds a new repository to the `repos` option. (To remove
 #'   a repository, call `option()` directly, with the subset that you want
@@ -79,12 +90,12 @@ repo_resolve <- function(spec) {
 #'   `repo_add()` returns the same data frame as `repo_get()`, invisibly.
 #' @export
 
-repo_add <- function(..., .list = NULL) {
-  repo_add_internal(..., .list = .list)
-  invisible(repo_get())
+repo_add <- function(..., .list = NULL, username = NULL) {
+  repo_add_internal(..., .list = .list, username = username)
+  invisible(suppressMessages(repo_get()))
 }
 
-repo_add_internal <- function(..., .list = NULL) {
+repo_add_internal <- function(..., .list = NULL, username = NULL) {
   new <- c(list(...), .list)
 
   if (length(new) == 0) return(invisible(repo_get()))
@@ -93,6 +104,7 @@ repo_add_internal <- function(..., .list = NULL) {
     repo_sugar,
     new,
     names(new) %||% rep("", length(new)),
+    MoreArgs = list(username = username),
     SIMPLIFY = FALSE,
     USE.NAMES = FALSE
   ))
@@ -153,22 +165,25 @@ with_repo <- function(repos, expr) {
 #
 # /Users/gaborcsardi/CRAN
 
-repo_sugar <- function(x, nm) {
+repo_sugar <- function(x, nm, username = NULL) {
   psd <- parse_url(x)
 
   # URL
-  if (!is.na(psd$protocol)) {
+  url <- if (!is.na(psd$protocol)) {
     repo_sugar_url(x, nm)
-
   } else if (grepl("^MRAN@", x)) {
     repo_sugar_mran(x, nm)
-
   } else if (grepl("^PPM@", x) || grepl("^RSPM@", x)) {
     repo_sugar_ppm(x, nm)
-
   } else {
     repo_sugar_path(x, nm)
   }
+
+  if (!is.null(username)) {
+    url <- sub("://", paste0("://", username, "@"), url)
+  }
+
+  url
 }
 
 repo_sugar_url <- function(x, nm) {
@@ -205,7 +220,8 @@ repo_sugar_ppm <- function(x, nm) {
   current <- current_r_platform_data()
   current_rver <- get_minor_r_version(getRversion())
   binaries <-
-    ! tolower(Sys.getenv("PKGCACHE_PPM_BINARIES")) %in% c("no", "false", "0", "off") &&
+    !tolower(Sys.getenv("PKGCACHE_PPM_BINARIES")) %in%
+      c("no", "false", "0", "off") &&
     current$cpu == "x86_64" &&
     grepl("linux", current$os)
 
@@ -226,12 +242,10 @@ repo_sugar_ppm <- function(x, nm) {
   # do we really have binaries? check in PPM status
   distros <- pkgenv$ppm_distros
   rvers <- pkgenv$ppm_r_versions
-  mch <- which(
-    distros$distribution == current$distribution &
-    distros$release == current$release
-  )
+  current_plt <- paste0(current$distribution, "-", current$release)
+  mch <- ppm_match_platform(distros, current_plt)
   binaries <- binaries &&
-    length(mch) == 1 &&
+    !is.na(mch) &&
     distros$binaries[mch] &&
     current_rver %in% rvers
 
@@ -271,8 +285,10 @@ parse_spec <- function(x) {
 }
 
 parse_spec_r <- function(x) {
-  if (is.null(pkgenv$r_versions) ||
-      package_version(x) > last(pkgenv$r_versions)$version) {
+  if (
+    is.null(pkgenv$r_versions) ||
+      package_version(x) > last(pkgenv$r_versions)$version
+  ) {
     tryCatch(
       pkgenv$r_versions <- get_r_versions(),
       error = function(err) warning("Failed to update list of R versions")
@@ -282,7 +298,7 @@ parse_spec_r <- function(x) {
   vers <- vcapply(pkgenv$r_versions, "[[", "version")
   dates <- parse_iso_8601(vcapply(pkgenv$r_versions, "[[", "date"))
 
-  if (! x %in% vers) {
+  if (!x %in% vers) {
     stop("Unknown R version: '", x, "'")
   }
 
@@ -312,13 +328,15 @@ parse_spec_pkg <- function(x) {
     stop("Invalid package version: '", x, "'")
   }
 
-  if (is.null(pkgenv$pkg_versions[[pkg]]) ||
-      package_version(ver) > last(names(pkgenv$pkg_versions[[pkg]]))) {
+  if (
+    is.null(pkgenv$pkg_versions[[pkg]]) ||
+      package_version(ver) > last(names(pkgenv$pkg_versions[[pkg]]))
+  ) {
     pkgenv$pkg_versions[[pkg]] <- get_pkg_versions(pkg)
   }
 
   vers <- pkgenv$pkg_versions[[pkg]]
-  if (! ver %in% names(vers)) {
+  if (!ver %in% names(vers)) {
     stop("Unknown '", pkg, "' version: '", ver, "'")
   }
 
@@ -384,7 +402,7 @@ next_day <- function(x) {
 #' * The `RSPM@` prefix is still supported and treated the same way as
 #'   `PPM@`.
 #' * The MRAN service is now retired, see
-#'   <https://techcommunity.microsoft.com/t5/azure-sql-blog/microsoft-r-application-network-retirement/ba-p/3707161>
+#'   `https://techcommunity.microsoft.com/blog/azuresqlblog/microsoft-r-application-network-retirement/3707161`
 #'   for details.
 #' * `MRAN@...` repository specifications now resolve to PPM, but note that
 #'   PPM snapshots are only available from 2017-10-10. See more about this

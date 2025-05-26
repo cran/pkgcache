@@ -13,9 +13,9 @@ repo_get(
   cran_mirror = default_cran_mirror()
 )
 
-repo_resolve(spec)
+repo_resolve(spec, username = NULL)
 
-repo_add(..., .list = NULL)
+repo_add(..., .list = NULL, username = NULL)
 
 with_repo(repos, expr)
 }
@@ -31,6 +31,9 @@ are not configured in the \code{repos} option.}
 
 \item{spec}{A single repository specification, a possibly named
 character scalar. See details below.}
+
+\item{username}{User name to set, for authenticated repositories, see
+\code{\link[=repo_auth]{repo_auth()}}.}
 
 \item{...}{Repository specifications. See details below.}
 
@@ -55,6 +58,10 @@ for others. This is also informational, and not used when retrieving
 the package metadata.
 \item \code{bioc_version}: Bioconductor version. Only set for Bioconductor
 repositories, and it is \code{NA} for others.
+\item \code{username}: user name, for authenticated repositories.
+\item \code{has_password}: whether \code{repo_get()} could find the password for
+this repository. Call \code{\link[=repo_auth]{repo_auth()}} for more information if the
+credential lookup failed.
 }
 
 \code{repo_resolve()} returns a named character vector, with the URL(s) of
@@ -123,7 +130,7 @@ Notes:
 \item The \verb{RSPM@} prefix is still supported and treated the same way as
 \verb{PPM@}.
 \item The MRAN service is now retired, see
-\url{https://techcommunity.microsoft.com/t5/azure-sql-blog/microsoft-r-application-network-retirement/ba-p/3707161}
+\verb{https://techcommunity.microsoft.com/blog/azuresqlblog/microsoft-r-application-network-retirement/3707161}
 for details.
 \item \code{MRAN@...} repository specifications now resolve to PPM, but note that
 PPM snapshots are only available from 2017-10-10. See more about this
@@ -139,12 +146,12 @@ will trigger an error.
 
 \examples{
 repo_get()
-\dontshow{if (pkgcache:::run_examples()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (pkgcache:::run_examples()) withAutoprint(\{ # examplesIf}
 repo_resolve("PPM@2021-01-21")
 #' repo_resolve("PPM@dplyr-1.0.0")
 #' repo_resolve("PPM@R-4.0.0")
 \dontshow{\}) # examplesIf}
-\dontshow{if (pkgcache:::run_examples()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (pkgcache:::run_examples()) withAutoprint(\{ # examplesIf}
 with_repo(c(CRAN = "PPM@dplyr-1.0.0"), repo_get())
 with_repo(c(CRAN = "PPM@dplyr-1.0.0"), meta_cache_list(package = "dplyr"))
 

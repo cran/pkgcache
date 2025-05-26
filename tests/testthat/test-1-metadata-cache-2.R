@@ -1,3 +1,6 @@
+if (Sys.getenv("R_COVR") == "true") {
+  return()
+}
 
 test_that("check_update", {
   setup_fake_apps()
@@ -96,18 +99,27 @@ test_that("deps, extract_deps", {
   dir.create(rep <- fs::path_norm(tempfile()))
   on.exit(unlink(rep, recursive = TRUE), add = TRUE)
 
-  cmc <- cranlike_metadata_cache$new(pri, rep, "source", bioc = FALSE,
-                                     cran_mirror = "mirror")
+  cmc <- cranlike_metadata_cache$new(
+    pri,
+    rep,
+    "source",
+    bioc = FALSE,
+    cran_mirror = "mirror"
+  )
 
   pri_files <- get_private(cmc)$get_cache_files("primary")
   mkdirp(dirname(pri_files$pkgs$path))
   fs::file_copy(test_path("fixtures/PACKAGES-src.gz"), pri_files$pkgs$path)
-  file_set_time(pri_files$pkgs$path, Sys.time() - 1/2 * oneday())
+  file_set_time(pri_files$pkgs$path, Sys.time() - 1 / 2 * oneday())
 
   pkgs <- read_packages_file(
     test_path("fixtures/PACKAGES-src.gz"),
-    mirror = "mirror", repodir = "src/contrib", platform = "source",
-    rversion = "*", type = "cran")
+    mirror = "mirror",
+    repodir = "src/contrib",
+    platform = "source",
+    rversion = "*",
+    type = "cran"
+  )
 
   deps <- suppressMessages(cmc$deps("abc", FALSE, FALSE))
   expect_identical(deps$package, "abc")
@@ -119,7 +131,7 @@ test_that("deps, extract_deps", {
   deps <- extract_deps(pkgs, "abc", TRUE, FALSE)
   expect_identical(deps$package, c("abc", "abc.data", "MASS", "nnet"))
   expect_identical(attr(deps, "base"), character())
-  expect_identical(attr(deps, "unknown"), c("quantreg", "locfit"))
+  expect_identical(attr(deps, "unknown"), c("locfit", "quantreg"))
   deps2 <- extract_deps(pkgs, "abc", TRUE, FALSE)
   expect_identical(deps, deps2)
 
@@ -127,8 +139,9 @@ test_that("deps, extract_deps", {
   expect_identical(deps$package, c("abc", "abc.data", "MASS", "nnet"))
   expect_identical(
     sort(attr(deps, "base")),
-    sort(c("grDevices", "graphics", "stats", "utils", "methods")))
-  expect_identical(attr(deps, "unknown"), c("quantreg", "locfit"))
+    sort(c("grDevices", "graphics", "stats", "utils", "methods"))
+  )
+  expect_identical(attr(deps, "unknown"), c("locfit", "quantreg"))
   deps2 <- extract_deps(pkgs, "abc", TRUE, TRUE)
   expect_identical(deps, deps2)
 

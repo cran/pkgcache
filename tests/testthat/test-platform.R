@@ -1,18 +1,61 @@
+if (Sys.getenv("R_COVR") == "true") {
+  return()
+}
 
 test_that("current_r_platform_data", {
-  mockery::stub(current_r_platform_data, "get_platform", "x86_64-apple-darwin17.0")
+  fake(current_r_platform_data, "get_platform", "x86_64-apple-darwin17.0")
   expect_equal(current_r_platform_data()$platform, "x86_64-apple-darwin17.0")
 })
 
 test_that("default_platforms", {
-  mockery::stub(default_platforms, "current_r_platform", "macos")
+  fake(default_platforms, "current_r_platform", "macos")
   expect_equal(default_platforms(), c("macos", "source"))
 
-  mockery::stub(default_platforms, "current_r_platform", "windows")
+  fake(default_platforms, "current_r_platform", "windows")
   expect_equal(default_platforms(), c("windows", "source"))
 
-  mockery::stub(default_platforms, "current_r_platform", "source")
+  fake(default_platforms, "current_r_platform", "source")
   expect_equal(default_platforms(), "source")
+})
+
+test_that("parse_platform", {
+  expect_snapshot({
+    parse_platform(c(
+      "something-else",
+      "aarch64-apple-darwin20",
+      "x86_64-w64-mingw32",
+      "i386+x86_64-w64-mingw32",
+      "aarch64-pc-linux",
+      "aarch64-pc-linux-gnu",
+      "aarch64-pc-linux-ubuntu",
+      "aarch64-pc-linux-ubuntu-22.04",
+      "aarch64-pc-linux-ubuntu-22.04-libc++",
+      "aarch64-pc-linux-gnu-ubuntu",
+      "aarch64-pc-linux-gnu-ubuntu-24.04",
+      "aarch64-pc-linux-gnu-ubuntu-24.04-libc++",
+      "aarch64-pc-linux-musl-alpine-13.4"
+    ))
+  })
+})
+
+test_that("re_linux_platform", {
+  expect_snapshot({
+    re_match(
+      c(
+        "something-else",
+        "linux",
+        "linux-gnu",
+        "linux-ubuntu",
+        "linux-ubuntu-22.04",
+        "linux-ubuntu-22.04-libc++",
+        "linux-gnu-ubuntu",
+        "linux-gnu-ubuntu-24.04",
+        "linux-gnu-ubuntu-24.04-libc++",
+        "linux-musl-alpine-13.4"
+      ),
+      re_linux_platform()
+    )
+  })
 })
 
 test_that("get_all_package_dirs", {
@@ -24,14 +67,14 @@ test_that("get_all_package_dirs", {
   expect_s3_class(res, "tbl")
   expect_equal(
     colnames(res),
-    c("platform", "rversion", "contriburl"))
+    c("platform", "rversion", "contriburl")
+  )
   expect_gte(nrow(res), 1)
   expect_true(all(sapply(res, is.character)))
-  expect_error(get_all_package_dirs("source", "3.1"), "R versions before")
-  expect_error(
-    get_package_dirs_for_platform("source", "3.1"),
-    "R versions before"
-  )
+  expect_snapshot(error = TRUE, {
+    get_all_package_dirs("source", "3.1")
+    get_package_dirs_for_platform("source", "3.1")
+  })
 
   res2 <- get_all_package_dirs("i386+x86_64-w64-mingw32", "4.0")
   res3 <- get_all_package_dirs("windows", "4.0")
@@ -59,14 +102,10 @@ test_that("get_all_package_dirs", {
   expect_true("x86_64-apple-darwin17.0" %in% d$platform)
   expect_true("source" %in% d$platform)
 
-  expect_error(
-    get_all_package_dirs("windows", "2.15.0"),
-    "does not support packages for R versions before"
-  )
-  expect_error(
-    get_all_package_dirs("macos", "3.1.3"),
-    "does not support packages for R versions before"
-  )
+  expect_snapshot(error = TRUE, {
+    get_all_package_dirs("windows", "2.15.0")
+    get_all_package_dirs("macos", "3.1.3")
+  })
 
   d <- get_all_package_dirs("macos", "3.2.0")
   expect_equal(
@@ -101,8 +140,8 @@ test_that("current_r_platform_data_linux", {
 })
 
 test_that("linux", {
-  mockery::stub(current_r_platform_data, "get_platform", "x86_64-pc-linux-gnu")
-  mockery::stub(
+  fake(current_r_platform_data, "get_platform", "x86_64-pc-linux-gnu")
+  fake(
     current_r_platform_data,
     "current_r_platform_data_linux",
     data.frame(stringsAsFactors = FALSE, x = "boo")
@@ -204,7 +243,10 @@ test_that("bioc_version_map", {
 })
 
 test_that("bioc_release_version, bioc_devel_version", {
-  # This will fail when a new bioc devel version is out
+  # This will fail when a new bioc devel version is out. If this is an odd
+  # Bioc version, then we don'r include that in the version map, because
+  # it will eventually change. In this case only update the snapshots.
+  # If there is a new even version out, then also update the mappings.
   on.exit(bioconductor$.internal$clear_cache())
   bioconductor$.internal$clear_cache()
   skip_on_cran()

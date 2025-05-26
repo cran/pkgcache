@@ -1,4 +1,3 @@
-
 #' Show the status of CRAN-like repositories
 #'
 #' It checks the status of the configured or supplied repositories,
@@ -26,6 +25,13 @@
 #' * `url`: base URL of the repository.
 #' * `bioc_version`: Bioconductor version, or `NA` for
 #'   non-Bioconductor repositories.
+#' * `username`: Included if at least one repository is authenticated.
+#'   `NA_character_` for repositories without authentication. See
+#'   [repo_auth()].
+#' * `has_password`: `TRUE` is the function could retrieve the password
+#'   for the authenticated repository. It is `NA` for repositories without
+#'   authentication. This column is included only if at least one
+#'   repository has authentication. See [repo_auth()].
 #' * `platform`: platform, see [default_platforms()] for possible values.
 #' * `path`: the path to the packages within the base URL, for a
 #'   given platform and R version.
@@ -47,10 +53,16 @@
 #' )
 #' summary(rst)
 
-repo_status <- function(platforms = default_platforms(),
-                        r_version = getRversion(),
-                        bioc = TRUE,
-                        cran_mirror = default_cran_mirror()) {
+repo_status <- function(
+  platforms = default_platforms(),
+  r_version = getRversion(),
+  bioc = TRUE,
+  cran_mirror = default_cran_mirror()
+) {
+  key <- random_key()
+  on.exit(clear_auth_cache(key), add = TRUE)
+  start_auth_cache(key)
+
   synchronise(async_repo_status(
     platforms,
     r_version,
@@ -59,10 +71,12 @@ repo_status <- function(platforms = default_platforms(),
   ))
 }
 
-async_repo_status <- function(platforms = default_platforms(),
-                              r_version = getRversion(),
-                              bioc = TRUE,
-                              cran_mirror = default_cran_mirror()) {
+async_repo_status <- function(
+  platforms = default_platforms(),
+  r_version = getRversion(),
+  bioc = TRUE,
+  cran_mirror = default_cran_mirror()
+) {
   r_version <- get_minor_r_version(r_version)
   repos <- cmc__get_repos(getOption("repos"), bioc, cran_mirror, r_version)
   dirs <- get_all_package_dirs(platforms, r_version)
@@ -98,11 +112,14 @@ async_repo_status <- function(platforms = default_platforms(),
   fns <- paste0("PACKAGES", c(".rds", ".gz", ""))
   urls <- mapx(sts$url, "/", sts$path, "/", list(fns), paste0)
 
-  ping <- function(u) http_head(u)$then(http_stop_for_status)
+  ping <- function(u) {
+    headers <- add_auth_header(u, character())
+    http_head(u, headers = headers)$then(http_stop_for_status)
+  }
   ping_any <- function(us) {
-    when_any(.list = lapply(us, ping))$
-      catch(error = function(err) err)$
-      finally(function() done <<- done + 1L)
+    when_any(.list = lapply(us, ping))$catch(error = function(err) err)$finally(
+      function() done <<- done + 1L
+    )
   }
 
   done <- 0L
@@ -129,14 +146,17 @@ async_repo_status <- function(platforms = default_platforms(),
 #' @export
 
 summary.pkgcache_repo_status <- function(object, ...) {
-
   srv <- sub("^https?://([^/]*).*$", "\\1", object$url)
   if (length(unique(object$r_version)) == 1) {
     key <- paste0(format(object$name), " @ ", srv)
   } else {
     key <- paste0(
-      format(object$name), " @ ", format(srv),
-      " (R ", object$r_version, ")"
+      format(object$name),
+      " @ ",
+      format(srv),
+      " (R ",
+      object$r_version,
+      ")"
     )
   }
   ssm <- data_frame(repository = unique(key))
@@ -160,7 +180,6 @@ summary.pkgcache_repo_status <- function(object, ...) {
 #' @export
 
 print.pkgcache_repo_status_summary <- function(x, ...) {
-
   repo <- format(c("Repository summary:", x$repository))
   ping <- format(
     c("", paste0("   (", format(format_time$pretty_sec(x$ping)), ")")),
@@ -182,7 +201,11 @@ print.pkgcache_repo_status_summary <- function(x, ...) {
       c(pl, ifelse(!is.na(x[[pl]]) & x[[pl]], symbol_ok, symbol_notok)),
       justify = "centre"
     )
-    s[-1] <- ifelse(!is.na(x[[pl]]) & x[[pl]], cli::col_green(s[-1]), cli::col_red(s[-1]))
+    s[-1] <- ifelse(
+      !is.na(x[[pl]]) & x[[pl]],
+      cli::col_green(s[-1]),
+      cli::col_red(s[-1])
+    )
     paste0(" ", s, "")
   })
   pl_str <- do.call("paste0", pl_strs)
@@ -193,7 +216,7 @@ print.pkgcache_repo_status_summary <- function(x, ...) {
 
 #' @export
 
-`[.pkgcache_repo_status_summary` <- function (x, i, j, drop = FALSE) {
+`[.pkgcache_repo_status_summary` <- function(x, i, j, drop = FALSE) {
   class(x) <- setdiff(class(x), "pkgcache_repo_status_summary")
   NextMethod("[")
 }

@@ -9,6 +9,7 @@ El
 MRAN
 PBC
 README
+ROR
 RSPM
 RStudio
 SHA
@@ -17,10 +18,15 @@ UUID
 archs
 async
 funder
+keyring
 libcurl
 lifecycle
+macos
 macOS
+netrc
 pak
 pkgdepends
+repo
+repos
 tibble
 tibbles

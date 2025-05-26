@@ -1,4 +1,3 @@
-
 test_that("external_process", {
   px <- asNamespace("processx")$get_tool("px")
   pxgen <- function(...) {
@@ -24,6 +23,7 @@ test_that("external_process", {
 })
 
 test_that("cancel external_process", {
+  testthat::local_edition(3)
   px <- asNamespace("processx")$get_tool("px")
   proc <- NULL
   pxgen <- function(...) {
@@ -40,17 +40,15 @@ test_that("cancel external_process", {
   afun <- function() {
     when_all(
       external_process(pxgen),
-      delay(0.001)$
-        then(function() {
-          limit <- Sys.time() + as.difftime(2, units = "secs")
-          while (Sys.time() < limit && !proc$is_alive()) Sys.sleep(0.1)
-          running <<- proc$is_alive()
-        })$
-        then(function() stop("failed"))
+      delay(0.001)$then(function() {
+        limit <- Sys.time() + as.difftime(2, units = "secs")
+        while (Sys.time() < limit && !proc$is_alive()) Sys.sleep(0.1)
+        running <<- proc$is_alive()
+      })$then(function() stop("failed"))
     )
   }
 
-  expect_error(synchronise(afun()))
+  expect_snapshot(error = TRUE, synchronise(afun()))
   expect_true(running)
 
   limit <- Sys.time() + as.difftime(2, units = "secs")
@@ -80,6 +78,7 @@ test_that("discarding stdout/stderr works", {
 })
 
 test_that("can disable error on status", {
+  testthat::local_edition(3)
   px <- asNamespace("processx")$get_tool("px")
   pxgen <- function(...) {
     processx::process$new(
@@ -90,16 +89,16 @@ test_that("can disable error on status", {
   }
   afun <- function(...) external_process(pxgen, ...)
 
-  expect_error(
-    synchronise(afun()),
-    "exited with non-zero status"
-  )
+  expect_snapshot(error = TRUE, synchronise(afun()))
 
   res <- synchronise(afun(error_on_status = FALSE))
-  expect_equal(res, list(
-    status = 1L,
-    stdout = NULL,
-    stderr = NULL,
-    timeout = FALSE
-  ))
+  expect_equal(
+    res,
+    list(
+      status = 1L,
+      stdout = NULL,
+      stderr = NULL,
+      timeout = FALSE
+    )
+  )
 })

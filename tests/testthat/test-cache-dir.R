@@ -1,4 +1,3 @@
-
 test_that("tools vs rappdirs", {
   skip_on_cran()
   if (getRversion() < "4.0.0") skip("Needs newer R")
@@ -38,15 +37,12 @@ test_that("error in R CMD check", {
     "R_USER_CACHE_DIR" = NA_character_,
     "R_PKG_CACHE_DIR" = NA_character_
   )
-  expect_error(
-    get_user_cache_dir(),
-    "env var not set during package check"
-  )
+  expect_snapshot(error = TRUE, get_user_cache_dir())
 })
 
 test_that("fall back to R_USER_CACHE_DIR via R_user_dir()", {
   args <- NULL
-  mockery::stub(
+  fake(
     get_user_cache_dir,
     "R_user_dir",
     function(...) {
@@ -60,27 +56,27 @@ test_that("fall back to R_USER_CACHE_DIR via R_user_dir()", {
     "R_USER_CACHE_DIR" = tempdir()
   )
 
-  expect_error(get_user_cache_dir(), "wait")
+  expect_snapshot(error = TRUE, get_user_cache_dir())
   expect_equal(args, list("pkgcache", "cache"))
 })
 
 test_that("cleanup_old_cache_dir", {
   tmp <- tempfile()
   on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
-  mockery::stub(cleanup_old_cache_dir, "user_cache_dir", function(...) tmp)
+  fake(cleanup_old_cache_dir, "user_cache_dir", function(...) tmp)
   expect_message(cleanup_old_cache_dir(), "nothing to do")
 
   cachedir <- file.path(tmp, "R-pkg")
   mkdirp(cachedir)
-  mockery::stub(cleanup_old_cache_dir, "interactive", FALSE)
-  expect_error(cleanup_old_cache_dir(), "non-interactive session")
+  fake(cleanup_old_cache_dir, "interactive", FALSE)
+  expect_snapshot(error = TRUE, cleanup_old_cache_dir())
 
-  mockery::stub(cleanup_old_cache_dir, "interactive", TRUE)
-  mockery::stub(cleanup_old_cache_dir, "readline", "n")
-  expect_error(cleanup_old_cache_dir(), "Aborted")
+  fake(cleanup_old_cache_dir, "interactive", TRUE)
+  fake(cleanup_old_cache_dir, "readline", "n")
+  expect_snapshot(error = TRUE, cleanup_old_cache_dir())
 
   expect_true(file.exists(cachedir))
-  mockery::stub(cleanup_old_cache_dir, "readline", "y")
+  fake(cleanup_old_cache_dir, "readline", "y")
   expect_message(cleanup_old_cache_dir(), "Cleaned up cache")
   expect_false(file.exists(cachedir))
 })
